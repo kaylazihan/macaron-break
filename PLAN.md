@@ -49,12 +49,12 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] Screen shake saat game over.
 
 ### Phase 5: Publikasi GitHub Pages
-- [ ] Inisialisasi git dan branch `main`.
-- [ ] Buat repository GitHub publik via GitHub CLI (`gh repo create <repo> --public --source=. --remote=origin --push`). *Wajib berstatus Public agar GitHub Pages gratis dapat aktif.*
-- [ ] Aktifkan GitHub Pages (Metode CLI `gh api` atau manual via Web UI Settings > Pages branch `main` root `/`).
-- [ ] Kompatibilitas Google AI Studio: Sediakan snippet perintah terminal siap salin jika proyek dilanjutkan lewat antarmuka web.
-- [ ] Pantau status workflow build di tab Actions (`gh run list`).
-- [ ] Tes live demo (`https://<username>.github.io/<repo>/`) dan pastikan pembaruan langsung tampil tanpa hambatan cache (Zero-Cache test).
+- [x] Inisialisasi git dan branch `main`.
+- [x] Repo publik: https://github.com/kaylazihan/macaron-break (dibuat via `gh repo create --public`).
+- [x] GitHub Pages aktif via `gh api` (branch `main`, path `/`): https://kaylazihan.github.io/macaron-break/
+- [x] Snippet perintah terminal tersedia di `AGENTS.md` (bagian Google AI Studio).
+- [x] Build Pages terverifikasi: status `building` → HTTP 200 pada percobaan pertama.
+- [x] Tes live demo: https://kaylazihan.github.io/macaron-break/ (HTTP 200, judul & palet baru tampil).
 
 ---
 
@@ -68,7 +68,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 | **T-03** | Modul Input Username & Leaderboard Top 10 | Phase 2 | `DONE` | AI | LocalStorage CRUD, sanitasi XSS, tabel Top 10 |
 | **T-04** | Logika Pergerakan, Rintangan & Tabrakan | Phase 3 | `DONE` | AI | Paddle, 35 balok, collision, skor, pause |
 | **T-05** | Efek Suara Synth Web Audio API & Partikel | Phase 4 | `DONE` | AI | SFX sintetis, partikel, screen shake |
-| **T-06** | Deployment GitHub Pages via GitHub CLI (`gh`) | Phase 5 | `TODO` | AI | Menunggu nama repo & konfirmasi publikasi |
+| **T-06** | Deployment GitHub Pages via GitHub CLI (`gh`) | Phase 5 | `DONE` | AI | Live: https://kaylazihan.github.io/macaron-break/ |
 
 *Status: `TODO` | `IN-PROGRESS` | `DONE`*
 
@@ -78,7 +78,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
-| **v0.4.0** | 2026-10-31 | AI | Tema warna pastel (latar terang, balok macaron, aksen mint), layout otomatis potret di HP & lanskap di laptop, render tajam (DPR), judul diganti menjadi **Macaron Break** | *(belum di-commit)* |
+| **v0.4.0** | 2026-10-31 | AI | Tema pastel hijau-cokelat (cream, sage, mocha), layout otomatis potret di HP & lanskap di laptop, render tajam (DPR), judul **Macaron Break**, deploy GitHub Pages | `01327ee` |
 | **v0.3.0** | 2026-10-31 | AI | Menyelesaikan game Brick Breaker: leaderboard LocalStorage, rendering neon, game loop fixed timestep, pause, sanitasi username, HUD mobile, uji otomatis 23 check | *(belum di-commit)* |
 | **v0.2.2** | 2026-10-24 | AI | Menambahkan panduan alur integrasi khusus Google AI Studio & penegasan repo wajib Public | `07475fb` |
 | **v0.2.1** | 2026-10-24 | AI | Menambahkan panduan detail aktivasi GitHub Pages (CLI gh api & Web UI visual) serta troubleshooting | `3aaf671` |
