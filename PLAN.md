@@ -6,9 +6,10 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 ## 1. Ikhtisar Game
 
-- **Judul Game**: **Macaron Break** (tema pastel lembut, kontrol keyboard + sentuh/mouse)
+- **Judul Game**: **Macaron Arcade** — 2 permainan dalam satu halaman: **Macaron Break** & **Macaron Match** (tema pastel lembut, kontrol keyboard + sentuh/mouse)
 - **Struktur Permainan**: 5 level bertingkat — bola makin cepat, baris balok bertambah, bonus poin per level
 - **Power-up**: 4 item jatuh dari balok (paddle lebar, bola ganda, bola lambat, nyawa +1)
+- **Macaron Match**: match-3 papan 8×8, 25 langkah, cascade combo, leaderboard terpisah
 - **Genre**: 2D Arcade Game
 - **Format**: Single-File HTML (`index.html`) tanpa dependensi eksternal
 - **Platform**: Web Browser (Desktop & Mobile Responsive)
@@ -77,10 +78,20 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] Pill durasi efek di atas papan, item & bola ikut dipindah saat rotasi layar.
 - [x] Uji otomatis Node.js: 34 pemeriksaan power-up (`PASS` semua) sebelum deploy.
 
+### Phase 8: Dua Game dalam Satu Halaman (v0.7.0)
+- [x] Layar **Home** "Macaron Arcade" untuk memilih permainan; username dipakai bersama.
+- [x] **Macaron Match** (match-3): papan 8×8, 6 warna macaron, tukar dua permen bersebelahan.
+- [x] Deteksi match horizontal & vertikal 3+, animasi hapus, gravitasi, isi ulang dari atas.
+- [x] **Cascade combo**: match beruntun berlipat (skor 10 × combo per permen), teks COMBO muncul.
+- [x] **25 langkah** per sesi; skor akhir masuk leaderboard khusus Macaron Match.
+- [x] Papan dijamin bebas match awal dan selalu punya langkah valid; papan buntu disusun ulang.
+- [x] Leaderboard dengan **tab** per game (data terpisah: `arcade_leaderboard` & `arcade_leaderboard_match`).
+- [x] HUD menyesuaikan mode: Nyawa/Level untuk Break, Langkah untuk Match.
+- [x] Uji otomatis Node.js: 56 pemeriksaan gabungan (match-3, navigasi, leaderboard, regresi Break).
+
 ---
 
 ## 3. Matriks Tugas & Status Pelaksanaan
-
 | ID | Tugas / Fitur | Fase | Status | Pelaksana | Catatan |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **T-00** | Pembuatan template `AGENTS.md` & `PLAN.md` untuk Siswa | Fondasi | `DONE` | AI | Template standar single model siap |
@@ -98,6 +109,10 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 | **T-12** | Multi-bola & aturan bola cadangan | Phase 7 | `DONE` | AI | Bola cadangan dipakai sebelum nyawa berkurang |
 | **T-13** | Timer efek & pill durasi di papan | Phase 7 | `DONE` | AI | Paddle lebar 12s, bola lambat 8s |
 | **T-14** | Uji otomatis power-up | Phase 7 | `DONE` | AI | 34 pemeriksaan, semuanya `PASS` |
+| **T-15** | Layar Home & navigasi dua game | Phase 8 | `DONE` | AI | Home → Break / Match, username bersama |
+| **T-16** | Engine match-3 (swap, match, gravity) | Phase 8 | `DONE` | AI | Papan 8×8, 6 warna, 25 langkah |
+| **T-17** | Cascade combo & leaderboard terpisah | Phase 8 | `DONE` | AI | Tab Break/Match, key LocalStorage berbeda |
+| **T-18** | Uji otomatis gabungan dua game | Phase 8 | `DONE` | AI | 56 pemeriksaan, semuanya `PASS` |
 
 *Status: `TODO` | `IN-PROGRESS` | `DONE`*
 
@@ -107,6 +122,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.7.0** | 2026-11-07 | AI | **Dua game dalam satu halaman**: layar Home "Macaron Arcade", game kedua **Macaron Match** (match-3 8×8, 25 langkah, cascade combo, gravity + refill, anti-match awal, anti-papan buntu), leaderboard dipisah per game dengan tab. HUD menyesuaikan mode. Diuji 56 pemeriksaan termasuk regresi Break | `bc28f93` |
 | **v0.6.0** | 2026-11-07 | AI | **Power-up**: 4 item jatuh dari balok (peluang 18%) — Paddle Lebar 1,6× 12 dtk, Bola Ganda +2 bola, Bola Lambat 0,65× 8 dtk, Nyawa +1 (maks 5). Bola cadangan dipakai sebelum nyawa berkurang, pill durasi di atas papan, item & bola ikut rotasi layar. Diuji 34 pemeriksaan | `b095cac` |
 | **v0.5.3** | 2026-11-07 | AI | Paddle diperlambat: **5 px/langkah** (portrait) & **7 px** (landscape), sebelumnya 7 & 9. Menyeberang layar ~1,07 detik (dulu ~0,9). Kecepatan bola tidak diubah. Diuji 7 pemeriksaan termasuk simulasi AI paddle di level 5 (0 bola terlewat) | `2ee3944` |
 | **v0.5.2** | 2026-11-07 | AI | Koreksi kecepatan: bola mulai **1,2×** dasar (bukan 1,5× karena terasa terlalu kencang) → 1,2 / 1,3 / 1,4 / 1,5 / 1,6. Paddle (alas) sengaja tidak dipercepat, tetap 7 px (portrait) & 9 px (landscape) per langkah. Diuji 11 pemeriksaan | `f910a5f` |
