@@ -59,7 +59,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 ### Phase 6: Level & Difficulty Ramp (v0.5.0)
 - [x] 5 level dengan `STATE_LEVELCLEAR` di antara level.
-- [x] Kecepatan bola mulai **1,5×** kecepatan dasar di level 1, lalu +10% setiap level (`LEVEL_START_SPEED`, `LEVEL_SPEED_STEP`).
+- [x] Kecepatan bola mulai **1,2×** kecepatan dasar di level 1, lalu +10% setiap level (`LEVEL_START_SPEED`, `LEVEL_SPEED_STEP`). Kecepatan paddle tetap (7/9 px per langkah).
 - [x] Baris balok bertambah 1 mulai level 3, palet warna macaron berganti tiap level.
 - [x] Bonus skor 50 × level saat level selesai, rekor dikirim ke leaderboard di level 5.
 - [x] Perbaikan bug: kontrol keyboard vs mouse, rotasi layar, sudut pantulan bola.
@@ -78,7 +78,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 | **T-04** | Logika Pergerakan, Rintangan & Tabrakan | Phase 3 | `DONE` | AI | Paddle, 35 balok, collision, skor, pause |
 | **T-05** | Efek Suara Synth Web Audio API & Partikel | Phase 4 | `DONE` | AI | SFX sintetis, partikel, screen shake |
 | **T-06** | Deployment GitHub Pages via GitHub CLI (`gh`) | Phase 5 | `DONE` | AI | Live: https://kaylazihan.github.io/macaron-break/ |
-| **T-07** | Sistem 5 level & difficulty ramp | Phase 6 | `DONE` | AI | Speed mulai 1,5× lalu +10%/level, bonus 50×level, palet berganti |
+| **T-07** | Sistem 5 level & difficulty ramp | Phase 6 | `DONE` | AI | Bola mulai 1,2× lalu +10%/level, paddle tetap, bonus 50×level |
 | **T-08** | Perbaikan bug kontrol & rotasi layar | Phase 6 | `DONE` | AI | Keyboard vs mouse, snapshot proporsional + auto-pause |
 | **T-09** | Perbaikan sudut pantulan bola | Phase 6 | `DONE` | AI | Batas minimum 22% `vx` / 30% `vy`, kecepatan tetap |
 | **T-10** | Uji otomatis logika game (Node.js) | Phase 6 | `DONE` | AI | 41 pemeriksaan, semuanya `PASS` |
@@ -91,6 +91,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.5.2** | 2026-11-07 | AI | Koreksi kecepatan: bola mulai **1,2×** dasar (bukan 1,5× karena terasa terlalu kencang) → 1,2 / 1,3 / 1,4 / 1,5 / 1,6. Paddle (alas) sengaja tidak dipercepat, tetap 7 px (portrait) & 9 px (landscape) per langkah. Diuji 11 pemeriksaan | `f910a5f` |
 | **v0.5.1** | 2026-11-07 | AI | Kecepatan bola dinaikkan: mulai **1,5×** kecepatan dasar di level 1 (sebelumnya 1,0×), tetap +10% per level → 1,5 / 1,6 / 1,7 / 1,8 / 1,9. Lintasan layar penuh kini ~1,7 detik (dulu ~2,5 detik). Diuji 11 pemeriksaan, aman dari tembus objek | `083fd06` |
 | **v0.5.0** | 2026-11-07 | AI | Sistem **5 level**: kecepatan bola +10%/level, baris balok bertambah mulai level 3, bonus 50×level, palet warna berganti, overlay Level Selesai. Perbaikan 3 bug: paddle terkunci mouse, rotasi layar menghapus progres, bola nyangkut di sudut datar | `b0efcb6` |
 | **v0.4.0** | 2026-10-31 | AI | Tema pastel hijau-cokelat (cream, sage, mocha), layout otomatis potret di HP & lanskap di laptop, render tajam (DPR), judul **Macaron Break**, deploy GitHub Pages | `01327ee` |
