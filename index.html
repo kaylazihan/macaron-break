@@ -220,6 +220,7 @@ let BRICK_OFFSET_LEFT = 28;
 
 const MAX_LIVES = 3;
 const MAX_LEVEL = 5;
+const LEVEL_START_SPEED = 1.5;   // kecepatan bola di level 1 = 1,5x kecepatan dasar
 const LEVEL_SPEED_STEP = 0.10;   // +10% kecepatan bola per level
 const LEVEL_CLEAR_BONUS = 50;    // bonus = 50 x level
 
@@ -361,7 +362,7 @@ window.addEventListener('visibilitychange', () => {
    4. GAME STATE & ENTITIES
    ======================================================== */
 function refreshBallSpeed() {
-  BALL_SPEED = BASE_BALL_SPEED * (1 + (level - 1) * LEVEL_SPEED_STEP);
+  BALL_SPEED = BASE_BALL_SPEED * (LEVEL_START_SPEED + (level - 1) * LEVEL_SPEED_STEP);
 }
 
 function resetBall() {
