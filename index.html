@@ -345,6 +345,7 @@ let matchBombCells = [];  // sel yang berubah jadi bom pada pembersihan ini
 let matchCombo = 0;
 let matchShake = 0;
 let matchDrag = null;     // { cell, x0, y0 } saat permen sedang digeser
+let matchSwaps = 0;       // jumlah tukaran berhasil (untuk memudarkan petunjuk)
 
 const keys = {};
 let pointerX = null;
@@ -1037,6 +1038,7 @@ function matchInitBoard() {
   matchScore = 0;
   matchSelected = null;
   matchDrag = null;
+  matchSwaps = 0;
   matchPhase = 'idle';
   matchPhaseT = 0;
   matchClearSet = [];
@@ -1077,6 +1079,7 @@ function matchTrySwap(a, b) {
   matchMoves--;
   matchSelected = null;
   matchCombo = 1;
+  matchSwaps++;
   updateMatchHUD();
   startMatchClear(runs, b);
   return true;
@@ -1652,6 +1655,18 @@ function renderMatch() {
     ctx.font = 'bold 20px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('COMBO x' + matchCombo, CANVAS_W / 2, m.y - 20);
+    ctx.textAlign = 'start';
+  }
+
+  // Petunjuk cara menggeser, hilang setelah tukaran pertama berhasil
+  if (matchSwaps === 0 && gameState === STATE_PLAYING) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(110, 95, 75, 0.92)';
+    ctx.font = 'bold 13px "Segoe UI", sans-serif';
+    ctx.fillText('Tahan permen, lalu geser ke sebelahnya', CANVAS_W / 2, m.y + m.h + 26);
+    ctx.fillStyle = 'rgba(150, 135, 115, 0.95)';
+    ctx.font = '12px "Segoe UI", sans-serif';
+    ctx.fillText('atau klik 2 permen bersebelahan', CANVAS_W / 2, m.y + m.h + 45);
     ctx.textAlign = 'start';
   }
 }
