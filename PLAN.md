@@ -63,6 +63,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] Baris balok bertambah 1 mulai level 3, palet warna macaron berganti tiap level.
 - [x] Bonus skor 50 × level saat level selesai, rekor dikirim ke leaderboard di level 5.
 - [x] Perbaikan bug: kontrol keyboard vs mouse, rotasi layar, sudut pantulan bola.
+- [x] Kecepatan paddle diturunkan ke **5 px** (portrait) & **7 px** (landscape) per langkah — sebelumnya 7 & 9 terasa terlalu gesit.
 - [x] Uji otomatis Node.js: 41 pemeriksaan (`PASS` semua) sebelum deploy.
 
 ---
@@ -91,6 +92,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.5.3** | 2026-11-07 | AI | Paddle diperlambat: **5 px/langkah** (portrait) & **7 px** (landscape), sebelumnya 7 & 9. Menyeberang layar ~1,07 detik (dulu ~0,9). Kecepatan bola tidak diubah. Diuji 7 pemeriksaan termasuk simulasi AI paddle di level 5 (0 bola terlewat) | `2ee3944` |
 | **v0.5.2** | 2026-11-07 | AI | Koreksi kecepatan: bola mulai **1,2×** dasar (bukan 1,5× karena terasa terlalu kencang) → 1,2 / 1,3 / 1,4 / 1,5 / 1,6. Paddle (alas) sengaja tidak dipercepat, tetap 7 px (portrait) & 9 px (landscape) per langkah. Diuji 11 pemeriksaan | `f910a5f` |
 | **v0.5.1** | 2026-11-07 | AI | Kecepatan bola dinaikkan: mulai **1,5×** kecepatan dasar di level 1 (sebelumnya 1,0×), tetap +10% per level → 1,5 / 1,6 / 1,7 / 1,8 / 1,9. Lintasan layar penuh kini ~1,7 detik (dulu ~2,5 detik). Diuji 11 pemeriksaan, aman dari tembus objek | `083fd06` |
 | **v0.5.0** | 2026-11-07 | AI | Sistem **5 level**: kecepatan bola +10%/level, baris balok bertambah mulai level 3, bonus 50×level, palet warna berganti, overlay Level Selesai. Perbaikan 3 bug: paddle terkunci mouse, rotasi layar menghapus progres, bola nyangkut di sudut datar | `b0efcb6` |
