@@ -8,6 +8,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 - **Judul Game**: **Macaron Break** (tema pastel lembut, kontrol keyboard + sentuh/mouse)
 - **Struktur Permainan**: 5 level bertingkat — bola makin cepat, baris balok bertambah, bonus poin per level
+- **Power-up**: 4 item jatuh dari balok (paddle lebar, bola ganda, bola lambat, nyawa +1)
 - **Genre**: 2D Arcade Game
 - **Format**: Single-File HTML (`index.html`) tanpa dependensi eksternal
 - **Platform**: Web Browser (Desktop & Mobile Responsive)
@@ -66,6 +67,16 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] Kecepatan paddle diturunkan ke **5 px** (portrait) & **7 px** (landscape) per langkah — sebelumnya 7 & 9 terasa terlalu gesit.
 - [x] Uji otomatis Node.js: 41 pemeriksaan (`PASS` semua) sebelum deploy.
 
+### Phase 7: Power-up & Multi-Bola (v0.6.0)
+- [x] Item jatuh dari balok yang hancur, peluang 18% (`POWERUP_DROP_CHANCE`), ditangkap paddle.
+- [x] **Paddle Lebar** (W): paddle 1,6× selama 12 detik.
+- [x] **Bola Ganda** (M): menambah 2 bola dari posisi bola utama.
+- [x] **Bola Lambat** (S): kecepatan 0,65× selama 8 detik (tidak menumpuk).
+- [x] **Nyawa +1** (+): maksimal 5 nyawa.
+- [x] Bola cadangan dipakai lebih dulu sebelum nyawa berkurang.
+- [x] Pill durasi efek di atas papan, item & bola ikut dipindah saat rotasi layar.
+- [x] Uji otomatis Node.js: 34 pemeriksaan power-up (`PASS` semua) sebelum deploy.
+
 ---
 
 ## 3. Matriks Tugas & Status Pelaksanaan
@@ -83,6 +94,10 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 | **T-08** | Perbaikan bug kontrol & rotasi layar | Phase 6 | `DONE` | AI | Keyboard vs mouse, snapshot proporsional + auto-pause |
 | **T-09** | Perbaikan sudut pantulan bola | Phase 6 | `DONE` | AI | Batas minimum 22% `vx` / 30% `vy`, kecepatan tetap |
 | **T-10** | Uji otomatis logika game (Node.js) | Phase 6 | `DONE` | AI | 41 pemeriksaan, semuanya `PASS` |
+| **T-11** | Power-up jatuh dari balok & ditangkap paddle | Phase 7 | `DONE` | AI | 4 jenis item, peluang 18% |
+| **T-12** | Multi-bola & aturan bola cadangan | Phase 7 | `DONE` | AI | Bola cadangan dipakai sebelum nyawa berkurang |
+| **T-13** | Timer efek & pill durasi di papan | Phase 7 | `DONE` | AI | Paddle lebar 12s, bola lambat 8s |
+| **T-14** | Uji otomatis power-up | Phase 7 | `DONE` | AI | 34 pemeriksaan, semuanya `PASS` |
 
 *Status: `TODO` | `IN-PROGRESS` | `DONE`*
 
@@ -92,6 +107,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.6.0** | 2026-11-07 | AI | **Power-up**: 4 item jatuh dari balok (peluang 18%) — Paddle Lebar 1,6× 12 dtk, Bola Ganda +2 bola, Bola Lambat 0,65× 8 dtk, Nyawa +1 (maks 5). Bola cadangan dipakai sebelum nyawa berkurang, pill durasi di atas papan, item & bola ikut rotasi layar. Diuji 34 pemeriksaan | `b095cac` |
 | **v0.5.3** | 2026-11-07 | AI | Paddle diperlambat: **5 px/langkah** (portrait) & **7 px** (landscape), sebelumnya 7 & 9. Menyeberang layar ~1,07 detik (dulu ~0,9). Kecepatan bola tidak diubah. Diuji 7 pemeriksaan termasuk simulasi AI paddle di level 5 (0 bola terlewat) | `2ee3944` |
 | **v0.5.2** | 2026-11-07 | AI | Koreksi kecepatan: bola mulai **1,2×** dasar (bukan 1,5× karena terasa terlalu kencang) → 1,2 / 1,3 / 1,4 / 1,5 / 1,6. Paddle (alas) sengaja tidak dipercepat, tetap 7 px (portrait) & 9 px (landscape) per langkah. Diuji 11 pemeriksaan | `f910a5f` |
 | **v0.5.1** | 2026-11-07 | AI | Kecepatan bola dinaikkan: mulai **1,5×** kecepatan dasar di level 1 (sebelumnya 1,0×), tetap +10% per level → 1,5 / 1,6 / 1,7 / 1,8 / 1,9. Lintasan layar penuh kini ~1,7 detik (dulu ~2,5 detik). Diuji 11 pemeriksaan, aman dari tembus objek | `083fd06` |
