@@ -98,6 +98,9 @@
   }
   .stats b { color: #7c8b5f; }
   .stats button { padding: 2px 10px; font-size: 12px; margin: 0; }
+  .tab { background: #e7e9da; color: #6f7c55; font-size: 12px; padding: 5px 14px; }
+  .tab:hover { background: #dbe0c8; }
+  .tab.tab-on { background: #8d9a76; color: #fff; }
   table { border-collapse: collapse; margin-top: 12px; font-size: 13px; }
   th, td { border: 1px solid #e5ddcc; padding: 4px 8px; text-align: center; }
   th { background: #edf0e1; color: #6f7c55; }
@@ -119,9 +122,24 @@
 
   <div id="uiStats" class="stats">
     <span>Skor: <b id="txtScore">0</b></span>
-    <span>Nyawa: <b id="txtLives">3</b></span>
-    <span>Level: <b id="txtLevel">1/5</b></span>
+    <span id="statBreakLives">Nyawa: <b id="txtLives">3</b></span>
+    <span id="statBreakLevel">Level: <b id="txtLevel">1/5</b></span>
+    <span id="statMatchMoves" style="display:none;">Langkah: <b id="txtMoves">25</b></span>
     <button id="btnHUDPause" style="display:none;">Pause</button>
+  </div>
+
+  <div id="ovlHome" class="overlay">
+    <h1>Macaron Arcade</h1>
+    <p>Pilih permainan:</p>
+    <div class="row">
+      <button id="btnHomeBreak">🧱 Macaron Break</button>
+      <button id="btnHomeMatch">🍬 Macaron Match</button>
+    </div>
+    <div class="row">
+      <button id="btnHomeLB">🏆 Leaderboard</button>
+      <button id="btnHomeName">Ganti Nama</button>
+    </div>
+    <div class="hint">Break: hancurkan balok · Match: tukar permen, cocokkan 3+</div>
   </div>
 
   <div id="ovlUsername" class="overlay">
@@ -143,8 +161,29 @@
       <button id="btnMenuMulai">Mulai Game</button>
       <button id="btnMenuLeaderboard">Leaderboard</button>
       <button id="btnMenuGantiNama">Ganti Nama</button>
+      <button id="btnMenuHome">« Semua Game</button>
     </div>
     <div class="hint">Kontrol: Panah kiri/kanan atau A/D | Spasi = Luncurkan / Pause</div>
+  </div>
+
+  <div id="ovlMatchMenu" class="overlay">
+    <h2>🍬 Macaron Match</h2>
+    <p>Tukar dua permen bersebelahan untuk mencocokkan 3 atau lebih.</p>
+    <p class="hint">8×8 · 25 langkah · cocokkan beruntun (cascade) untuk skor berlipat</p>
+    <div class="row">
+      <button id="btnMatchStart">Mulai</button>
+      <button id="btnMatchBack">« Semua Game</button>
+    </div>
+  </div>
+
+  <div id="ovlMatchOver" class="overlay">
+    <h2 style="color:#b8785f;">Langkah Habis</h2>
+    <p>Skor akhir: <b id="txtMatchFinal">0</b></p>
+    <p class="hint" id="txtMatchNote"></p>
+    <div class="row">
+      <button id="btnMatchRetry">Coba Lagi</button>
+      <button id="btnMatchHome">Menu Utama</button>
+    </div>
   </div>
 
   <div id="ovlGameOver" class="overlay">
@@ -177,6 +216,10 @@
 
   <div id="ovlLeaderboard" class="overlay">
     <h2>🏆 Leaderboard</h2>
+    <div class="row" style="margin-top:4px">
+      <button id="btnLBBreak" class="tab tab-on">Macaron Break</button>
+      <button id="btnLBMatch" class="tab">Macaron Match</button>
+    </div>
     <table id="tblLeaderboard">
       <thead><tr><th>#</th><th>Nama</th><th>Skor</th><th>Tanggal</th></tr></thead>
       <tbody></tbody>
@@ -239,6 +282,16 @@ const POWERUP_TYPES = [
   { id: 'life',  label: '+', color: '#dfb188', name: 'Nyawa +1' }
 ];
 
+/* MATCH-3: Macaron Match */
+const MATCH_ROWS = 8;
+const MATCH_COLS = 8;
+const MATCH_MOVES = 25;
+const MATCH_PAD = 18;
+const MATCH_BASE_SCORE = 10;
+const MATCH_CLEAR_MS = 140;
+const MATCH_FALL_MS = 190;
+const MATCH_COLORS = ['#f0b8c4', '#c9d9a8', '#f5e2b0', '#bcd8e8', '#d8c0e0', '#e8c3a6'];
+
 // Palet macaron, dipakai bergantian tiap level
 const BRICK_PALETTES = [
   ['#e3c3a6', '#cdd8b4', '#f0e3c8', '#aebd93', '#d9c9b0'],
@@ -277,6 +330,22 @@ let extraBalls = [];      // bola tambahan dari power-up "Bola Ganda"
 let powerups = [];        // item yang sedang jatuh
 let effectWide = 0;       // sisa waktu paddle lebar (ms)
 let effectSlow = 0;       // sisa waktu bola lambat (ms)
+
+/* Mode game: 'BREAK' (Macaron Break) atau 'MATCH' (Macaron Match) */
+let gameMode = 'BREAK';
+let lbGame = 'break';     // tab leaderboard aktif
+let lbReturn = 'ovlHome'; // overlay tujuan tombol "Tutup" leaderboard
+
+/* State Macaron Match */
+let matchGrid = [];       // matchGrid[r][c] = { color, offY, scale } atau null
+let matchMoves = MATCH_MOVES;
+let matchScore = 0;
+let matchSelected = null; // { r, c }
+let matchPhase = 'idle';  // 'idle' | 'clear' | 'fall'
+let matchPhaseT = 0;
+let matchClearSet = [];
+let matchCombo = 0;
+let matchShake = 0;
 
 const keys = {};
 let pointerX = null;
@@ -340,11 +409,21 @@ window.addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (e.repeat) return;
   if (e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyP') {
+    if (gameMode !== 'BREAK') return;
     if (gameState === STATE_PLAYING && !ball.stuck) togglePause();
     else if (gameState === STATE_PAUSED) togglePause();
   }
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+function canvasPoint(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return {
+    x: (clientX - rect.left) * (CANVAS_W / rect.width),
+    y: (clientY - rect.top) * (CANVAS_H / rect.height)
+  };
+}
 
 window.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -359,18 +438,28 @@ window.addEventListener('touchmove', (e) => {
   pointerX = (touch.clientX - rect.left) * (CANVAS_W / rect.width);
 }, { passive: false });
 
-// Hanya tap/klik DI DALAM canvas yang meluncurkan bola
+// Hanya tap/klik DI DALAM canvas yang diproses
 window.addEventListener('mousedown', (e) => {
-  if (e.target === canvas) isPointerDown = true;
+  if (e.target !== canvas) return;
+  if (gameMode === 'MATCH') {
+    const p = canvasPoint(e.clientX, e.clientY);
+    if (p) matchPointerDown(p.x, p.y);
+    return;
+  }
+  isPointerDown = true;
 });
 window.addEventListener('mouseup', () => { isPointerDown = false; });
 window.addEventListener('touchstart', (e) => {
   if (e.target !== canvas) return;
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width) return;
   const touch = e.touches[0];
-  pointerX = (touch.clientX - rect.left) * (CANVAS_W / rect.width);
+  const p = canvasPoint(touch.clientX, touch.clientY);
+  if (!p) return;
+  if (gameMode === 'MATCH') {
+    matchPointerDown(p.x, p.y);
+    return;
+  }
+  pointerX = p.x;
   isPointerDown = true;
 }, { passive: false });
 window.addEventListener('touchend', () => { isPointerDown = false; });
@@ -740,11 +829,311 @@ function updatePhysics(dt) {
 }
 
 /* ========================================================
-   6. LOCALSTORAGE LEADERBOARD
+   6. MATCH-3 ENGINE (Macaron Match)
+   ======================================================== */
+function matchMetrics() {
+  const availW = CANVAS_W - MATCH_PAD * 2;
+  const availH = CANVAS_H - 150;
+  const cell = Math.floor(Math.min(availW / MATCH_COLS, availH / MATCH_ROWS));
+  const w = cell * MATCH_COLS;
+  const h = cell * MATCH_ROWS;
+  return {
+    cell, w, h,
+    x: Math.round((CANVAS_W - w) / 2),
+    y: Math.round((CANVAS_H - h) / 2 + 8)
+  };
+}
+
+function makeCandy(color) {
+  return { color, offY: 0, scale: 1 };
+}
+
+function matchCellAt(x, y) {
+  const m = matchMetrics();
+  const c = Math.floor((x - m.x) / m.cell);
+  const r = Math.floor((y - m.y) / m.cell);
+  if (r < 0 || r >= MATCH_ROWS || c < 0 || c >= MATCH_COLS) return null;
+  return { r, c };
+}
+
+function swapCandies(r1, c1, r2, c2) {
+  const tmp = matchGrid[r1][c1];
+  matchGrid[r1][c1] = matchGrid[r2][c2];
+  matchGrid[r2][c2] = tmp;
+}
+
+// Kumpulan sel yang membentuk baris/kolom 3 warna sama atau lebih
+function findMatchSet() {
+  const found = new Set();
+  const key = (r, c) => r * MATCH_COLS + c;
+
+  for (let r = 0; r < MATCH_ROWS; r++) {
+    let run = 1;
+    for (let c = 1; c <= MATCH_COLS; c++) {
+      const same = c < MATCH_COLS && matchGrid[r][c] && matchGrid[r][c - 1] &&
+                   matchGrid[r][c].color === matchGrid[r][c - 1].color;
+      if (same) {
+        run++;
+      } else {
+        if (run >= 3) for (let k = c - run; k < c; k++) found.add(key(r, k));
+        run = 1;
+      }
+    }
+  }
+
+  for (let c = 0; c < MATCH_COLS; c++) {
+    let run = 1;
+    for (let r = 1; r <= MATCH_ROWS; r++) {
+      const same = r < MATCH_ROWS && matchGrid[r][c] && matchGrid[r - 1][c] &&
+                   matchGrid[r][c].color === matchGrid[r - 1][c].color;
+      if (same) {
+        run++;
+      } else {
+        if (run >= 3) for (let k = r - run; k < r; k++) found.add(key(k, c));
+        run = 1;
+      }
+    }
+  }
+  return found;
+}
+
+function hasValidMove() {
+  for (let r = 0; r < MATCH_ROWS; r++) {
+    for (let c = 0; c < MATCH_COLS; c++) {
+      if (c + 1 < MATCH_COLS) {
+        swapCandies(r, c, r, c + 1);
+        const ok = findMatchSet().size > 0;
+        swapCandies(r, c, r, c + 1);
+        if (ok) return true;
+      }
+      if (r + 1 < MATCH_ROWS) {
+        swapCandies(r, c, r + 1, c);
+        const ok = findMatchSet().size > 0;
+        swapCandies(r, c, r + 1, c);
+        if (ok) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Papan buntu (tidak ada langkah yang menghasilkan match): susun ulang warna
+// dengan aturan "tidak boleh 3 sewarna berurutan" agar hasilnya bersih.
+function shuffleBoard() {
+  let guard = 0;
+  do {
+    for (let r = 0; r < MATCH_ROWS; r++) {
+      for (let c = 0; c < MATCH_COLS; c++) {
+        let color = MATCH_COLORS[0];
+        let tries = 0;
+        do {
+          color = MATCH_COLORS[Math.floor(Math.random() * MATCH_COLORS.length)];
+          tries++;
+          const sameLeft = c >= 2 && matchGrid[r][c - 1].color === color && matchGrid[r][c - 2].color === color;
+          const sameUp = r >= 2 && matchGrid[r - 1][c].color === color && matchGrid[r - 2][c].color === color;
+          if (!sameLeft && !sameUp) break;
+        } while (tries < 60);
+
+        if (!matchGrid[r][c]) matchGrid[r][c] = makeCandy(color);
+        matchGrid[r][c].color = color;
+        matchGrid[r][c].offY = 0;
+        matchGrid[r][c].scale = 1;
+      }
+    }
+    guard++;
+  } while (guard < 40 && (findMatchSet().size > 0 || !hasValidMove()));
+}
+
+function matchInitBoard() {
+  matchGrid = [];
+  for (let r = 0; r < MATCH_ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < MATCH_COLS; c++) {
+      let color = MATCH_COLORS[0];
+      let guard = 0;
+      do {
+        color = MATCH_COLORS[Math.floor(Math.random() * MATCH_COLORS.length)];
+        guard++;
+        const sameLeft = c >= 2 && row[c - 1].color === color && row[c - 2].color === color;
+        const sameUp = r >= 2 && matchGrid[r - 1][c].color === color && matchGrid[r - 2][c].color === color;
+        if (!sameLeft && !sameUp) break;
+      } while (guard < 60);
+      row.push(makeCandy(color));
+    }
+    matchGrid.push(row);
+  }
+
+  matchMoves = MATCH_MOVES;
+  matchScore = 0;
+  matchSelected = null;
+  matchPhase = 'idle';
+  matchPhaseT = 0;
+  matchClearSet = [];
+  matchCombo = 0;
+  matchShake = 0;
+
+  if (findMatchSet().size > 0 || !hasValidMove()) shuffleBoard();
+  updateMatchHUD();
+}
+
+function startMatchClear(set) {
+  matchClearSet = Array.from(set);
+  matchPhase = 'clear';
+  matchPhaseT = 0;
+  sfxBrick();
+}
+
+// Tukar dua permen. Hanya dihitung 1 langkah bila menghasilkan match.
+function matchTrySwap(a, b) {
+  if (matchPhase !== 'idle' || matchMoves <= 0 || gameState !== STATE_PLAYING) return false;
+  if (Math.abs(a.r - b.r) + Math.abs(a.c - b.c) !== 1) return false;
+
+  swapCandies(a.r, a.c, b.r, b.c);
+  const found = findMatchSet();
+  if (!found.size) {
+    swapCandies(a.r, a.c, b.r, b.c);
+    matchShake = 220;
+    sfxClick();
+    return false;
+  }
+
+  matchMoves--;
+  matchSelected = null;
+  matchCombo = 1;
+  updateMatchHUD();
+  startMatchClear(found);
+  return true;
+}
+
+// Runtuhkan permen, isi ulang dari atas
+function collapseBoard() {
+  const cell = matchMetrics().cell;
+  for (let c = 0; c < MATCH_COLS; c++) {
+    let write = MATCH_ROWS - 1;
+    for (let r = MATCH_ROWS - 1; r >= 0; r--) {
+      const candy = matchGrid[r][c];
+      if (!candy) continue;
+      if (write !== r) {
+        matchGrid[write][c] = candy;
+        matchGrid[r][c] = null;
+        candy.offY += (r - write) * cell;
+      }
+      write--;
+    }
+    let dropped = 0;
+    for (let r = write; r >= 0; r--) {
+      dropped++;
+      const candy = makeCandy(MATCH_COLORS[Math.floor(Math.random() * MATCH_COLORS.length)]);
+      candy.offY = -dropped * cell;
+      matchGrid[r][c] = candy;
+    }
+  }
+}
+
+function updateMatchHUD() {
+  document.getElementById('txtScore').textContent = matchScore;
+  document.getElementById('txtMoves').textContent = Math.max(0, matchMoves);
+}
+
+function matchGameOver() {
+  gameState = STATE_GAMEOVER;
+  const rank = checkLeaderboard(matchScore, 'match');
+  document.getElementById('txtMatchFinal').textContent = matchScore;
+  document.getElementById('txtMatchNote').textContent = rank > 0
+    ? 'Masuk peringkat #' + rank + ' di leaderboard Macaron Match!'
+    : 'Skor belum masuk 10 besar. Coba lagi!';
+  showOverlay('ovlMatchOver');
+  syncHUD();
+}
+
+function updateMatch(dt) {
+  if (matchShake > 0) matchShake = Math.max(0, matchShake - dt);
+
+  if (matchPhase === 'clear') {
+    matchPhaseT += dt;
+    const p = Math.min(1, matchPhaseT / MATCH_CLEAR_MS);
+    for (const k of matchClearSet) {
+      const candy = matchGrid[Math.floor(k / MATCH_COLS)][k % MATCH_COLS];
+      if (candy) candy.scale = 1 - p;
+    }
+    if (p >= 1) {
+      matchScore += matchClearSet.length * MATCH_BASE_SCORE * matchCombo;
+      updateMatchHUD();
+      for (const k of matchClearSet) {
+        matchGrid[Math.floor(k / MATCH_COLS)][k % MATCH_COLS] = null;
+      }
+      matchClearSet = [];
+      collapseBoard();
+      matchPhase = 'fall';
+      matchPhaseT = 0;
+    }
+  } else if (matchPhase === 'fall') {
+    matchPhaseT += dt;
+    const k = Math.pow(0.02, dt / MATCH_FALL_MS);
+    for (let r = 0; r < MATCH_ROWS; r++) {
+      for (let c = 0; c < MATCH_COLS; c++) {
+        const candy = matchGrid[r][c];
+        if (candy) candy.offY *= k;
+      }
+    }
+    if (matchPhaseT >= MATCH_FALL_MS) {
+      for (let r = 0; r < MATCH_ROWS; r++) {
+        for (let c = 0; c < MATCH_COLS; c++) {
+          const candy = matchGrid[r][c];
+          if (candy) {
+            candy.offY = 0;
+            candy.scale = 1;
+          }
+        }
+      }
+      const next = findMatchSet();
+      if (next.size) {
+        matchCombo++;
+        startMatchClear(next);
+      } else {
+        matchPhase = 'idle';
+        matchCombo = 0;
+        if (!hasValidMove()) shuffleBoard();
+        if (matchMoves <= 0) matchGameOver();
+      }
+    }
+  }
+}
+
+function matchPointerDown(x, y) {
+  if (gameState !== STATE_PLAYING || matchPhase !== 'idle') return;
+  const cell = matchCellAt(x, y);
+  if (!cell) return;
+
+  if (!matchSelected) {
+    matchSelected = cell;
+    sfxClick();
+    return;
+  }
+  if (matchSelected.r === cell.r && matchSelected.c === cell.c) {
+    matchSelected = null;
+    return;
+  }
+  const adjacent = Math.abs(matchSelected.r - cell.r) + Math.abs(matchSelected.c - cell.c) === 1;
+  if (adjacent) {
+    // Swap gagal: pilihan pindah ke permen kedua supaya tidak terasa "nyangkut"
+    if (!matchTrySwap(matchSelected, cell)) matchSelected = cell;
+  } else {
+    matchSelected = cell;
+  }
+}
+
+/* ========================================================
+   7. LOCALSTORAGE LEADERBOARD
    ======================================================== */
 const LS_LAST_USERNAME = 'arcade_last_username';
-const LS_LEADERBOARD = 'arcade_leaderboard';
+const LS_LEADERBOARD = 'arcade_leaderboard';             // Macaron Break
+const LS_LEADERBOARD_MATCH = 'arcade_leaderboard_match'; // Macaron Match
 const MAX_LEADERBOARD = 10;
+
+function leaderboardKey(game) {
+  return game === 'match' ? LS_LEADERBOARD_MATCH : LS_LEADERBOARD;
+}
 
 function sanitizeUsername(raw) {
   return String(raw == null ? '' : raw)
@@ -763,9 +1152,9 @@ function saveUsername(name) {
   try { localStorage.setItem(LS_LAST_USERNAME, name); } catch (err) {}
 }
 
-function getLeaderboard() {
+function getLeaderboard(game = 'break') {
   try {
-    const parsed = JSON.parse(localStorage.getItem(LS_LEADERBOARD) || '[]');
+    const parsed = JSON.parse(localStorage.getItem(leaderboardKey(game)) || '[]');
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter(entry => entry && typeof entry.score === 'number' && typeof entry.username === 'string')
@@ -776,9 +1165,9 @@ function getLeaderboard() {
   }
 }
 
-function saveLeaderboard(list) {
+function saveLeaderboard(list, game = 'break') {
   try {
-    localStorage.setItem(LS_LEADERBOARD, JSON.stringify(list.slice(0, MAX_LEADERBOARD)));
+    localStorage.setItem(leaderboardKey(game), JSON.stringify(list.slice(0, MAX_LEADERBOARD)));
   } catch (err) {}
 }
 
@@ -788,8 +1177,8 @@ function formatDate(ts) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function checkLeaderboard(finalScore) {
-  if (!finalScore || finalScore <= 0) return;
+function checkLeaderboard(finalScore, game = 'break') {
+  if (!finalScore || finalScore <= 0) return 0;
   const now = Date.now();
   const entry = {
     id: 'run_' + now,
@@ -798,16 +1187,25 @@ function checkLeaderboard(finalScore) {
     timestamp: now,
     date: formatDate(now)
   };
-  const list = getLeaderboard();
+  const list = getLeaderboard(game);
   list.push(entry);
   list.sort((a, b) => b.score - a.score);
-  saveLeaderboard(list);
+  const rank = list.findIndex(e => e.id === entry.id) + 1;
+  saveLeaderboard(list, game);
+  return rank;
 }
 
-function renderLeaderboard() {
+function renderLeaderboard(game = lbGame) {
+  lbGame = game;
   const tbody = document.querySelector('#tblLeaderboard tbody');
   if (!tbody) return;
-  const list = getLeaderboard();
+
+  const btnBreak = document.getElementById('btnLBBreak');
+  const btnMatch = document.getElementById('btnLBMatch');
+  btnBreak.classList.toggle('tab-on', game === 'break');
+  btnMatch.classList.toggle('tab-on', game === 'match');
+
+  const list = getLeaderboard(game);
   tbody.innerHTML = '';
 
   if (!list.length) {
@@ -833,9 +1231,9 @@ function renderLeaderboard() {
 }
 
 /* ========================================================
-   7. RENDERING & UI
+   8. RENDERING & UI
    ======================================================== */
-const OVERLAY_IDS = ['ovlUsername', 'ovlMenu', 'ovlGameOver', 'ovlLevel', 'ovlWin', 'ovlLeaderboard', 'ovlPause'];
+const OVERLAY_IDS = ['ovlHome', 'ovlUsername', 'ovlMenu', 'ovlMatchMenu', 'ovlGameOver', 'ovlMatchOver', 'ovlLevel', 'ovlWin', 'ovlLeaderboard', 'ovlPause'];
 let currentOverlayId = null;
 let shake = 0;
 
@@ -850,9 +1248,19 @@ function showOverlay(id) {
   if (target) target.classList.remove('hidden');
 }
 
+function setStatsForMode() {
+  const isMatch = gameMode === 'MATCH';
+  document.getElementById('statBreakLives').style.display = isMatch ? 'none' : '';
+  document.getElementById('statBreakLevel').style.display = isMatch ? 'none' : '';
+  document.getElementById('statMatchMoves').style.display = isMatch ? '' : 'none';
+}
+
 function syncHUD() {
   const btn = document.getElementById('btnHUDPause');
-  if (btn) btn.style.display = gameState === STATE_PLAYING ? 'inline-block' : 'none';
+  if (btn) btn.style.display = (gameMode === 'BREAK' && gameState === STATE_PLAYING) ? 'inline-block' : 'none';
+  const stats = document.getElementById('uiStats');
+  if (stats) stats.style.display = (currentOverlayId === 'ovlHome' || currentOverlayId === 'ovlMatchMenu') ? 'none' : 'flex';
+  setStatsForMode();
 }
 
 function roundRect(x, y, w, h, r) {
@@ -1011,9 +1419,7 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
-function render() {
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+function renderBreakout() {
   ctx.save();
   if (shake > 0.5) {
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -1027,6 +1433,82 @@ function render() {
   drawParticles();
   drawEffects();
   ctx.restore();
+}
+
+function drawCandy(x, y, cell, candy) {
+  const s = candy.scale;
+  if (s <= 0.02) return;
+  const pad = Math.max(2, cell * 0.08);
+  const size = (cell - pad * 2) * s;
+  const cx = x + cell / 2;
+  const cy = y + cell / 2;
+  const half = size / 2;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(120, 110, 80, 0.28)';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = candy.color;
+  roundRect(cx - half, cy - half, size, size, Math.max(4, size * 0.28));
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.beginPath();
+  ctx.ellipse(cx - half * 0.35, cy - half * 0.42, half * 0.34, half * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderMatch() {
+  drawBackground();
+
+  const m = matchMetrics();
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.shadowColor = 'rgba(140, 130, 100, 0.15)';
+  ctx.shadowBlur = 14;
+  roundRect(m.x - 8, m.y - 8, m.w + 16, m.h + 16, 16);
+  ctx.fill();
+  ctx.restore();
+
+  const shakeX = matchShake > 0 ? Math.sin(matchShake / 14) * 4 : 0;
+
+  for (let r = 0; r < MATCH_ROWS; r++) {
+    for (let c = 0; c < MATCH_COLS; c++) {
+      const candy = matchGrid[r][c];
+      if (!candy) continue;
+      drawCandy(m.x + c * m.cell + shakeX, m.y + r * m.cell + candy.offY, m.cell, candy);
+    }
+  }
+
+  if (matchSelected) {
+    const x = m.x + matchSelected.c * m.cell;
+    const y = m.y + matchSelected.r * m.cell;
+    ctx.save();
+    ctx.strokeStyle = '#8d9a76';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 4]);
+    roundRect(x + 3, y + 3, m.cell - 6, m.cell - 6, 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (matchCombo > 1) {
+    ctx.fillStyle = 'rgba(120, 100, 70, 0.85)';
+    ctx.font = 'bold 20px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('COMBO x' + matchCombo, CANVAS_W / 2, m.y - 20);
+    ctx.textAlign = 'start';
+  }
+}
+
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  if (gameMode === 'MATCH') {
+    renderMatch();
+    return;
+  }
+  renderBreakout();
 }
 
 function openUsernameModal() {
@@ -1053,7 +1535,7 @@ function submitUsername() {
   sfxClick();
   inp.value = name;
   err.textContent = '';
-  toMenu();
+  toHome();
 }
 
 const getEl = (id) => document.getElementById(id);
@@ -1067,35 +1549,77 @@ getEl('inpUsername').addEventListener('keydown', (e) => {
 });
 getEl('btnMenuMulai').addEventListener('click', () => { ensureAudio(); sfxClick(); startGame(); });
 getEl('btnMenuGantiNama').addEventListener('click', () => { sfxClick(); openUsernameModal(); });
+getEl('btnMenuHome').addEventListener('click', () => { sfxClick(); toHome(); });
 getEl('btnMenuLeaderboard').addEventListener('click', () => {
   ensureAudio();
   sfxClick();
-  renderLeaderboard();
+  lbReturn = 'ovlMenu';
+  renderLeaderboard('break');
   showOverlay('ovlLeaderboard');
 });
-getEl('btnLBClose').addEventListener('click', () => { sfxClick(); showOverlay('ovlMenu'); });
+getEl('btnHomeBreak').addEventListener('click', () => { ensureAudio(); sfxClick(); toMenu(); });
+getEl('btnHomeMatch').addEventListener('click', () => { ensureAudio(); sfxClick(); toMatchMenu(); });
+getEl('btnHomeName').addEventListener('click', () => { sfxClick(); openUsernameModal(); });
+getEl('btnHomeLB').addEventListener('click', () => {
+  ensureAudio();
+  sfxClick();
+  lbReturn = 'ovlHome';
+  renderLeaderboard('break');
+  showOverlay('ovlLeaderboard');
+});
+getEl('btnLBBreak').addEventListener('click', () => { sfxClick(); renderLeaderboard('break'); });
+getEl('btnLBMatch').addEventListener('click', () => { sfxClick(); renderLeaderboard('match'); });
+getEl('btnLBClose').addEventListener('click', () => { sfxClick(); showOverlay(lbReturn || 'ovlHome'); });
+getEl('btnMatchStart').addEventListener('click', () => { ensureAudio(); sfxClick(); startMatch(); });
+getEl('btnMatchBack').addEventListener('click', () => { sfxClick(); toHome(); });
+getEl('btnMatchRetry').addEventListener('click', () => { sfxClick(); startMatch(); });
+getEl('btnMatchHome').addEventListener('click', () => { sfxClick(); toHome(); });
 getEl('btnGORestart').addEventListener('click', () => { sfxClick(); startGame(); });
-getEl('btnGOMainMenu').addEventListener('click', () => { sfxClick(); toMenu(); });
+getEl('btnGOMainMenu').addEventListener('click', () => { sfxClick(); toHome(); });
 getEl('btnLevelNext').addEventListener('click', () => { sfxClick(); nextLevel(); });
 getEl('btnWinRestart').addEventListener('click', () => { sfxClick(); startGame(); });
-getEl('btnWinMainMenu').addEventListener('click', () => { sfxClick(); toMenu(); });
+getEl('btnWinMainMenu').addEventListener('click', () => { sfxClick(); toHome(); });
 getEl('btnPauseResume').addEventListener('click', () => { sfxClick(); togglePause(); });
-getEl('btnPauseMenu').addEventListener('click', () => { sfxClick(); toMenu(); });
+getEl('btnPauseMenu').addEventListener('click', () => { sfxClick(); toHome(); });
 getEl('btnHUDPause').addEventListener('click', () => {
   if (gameState === STATE_PLAYING) togglePause();
 });
 
 /* ========================================================
-   8. MAIN GAME LOOP & BOOTSTRAP
+   9. MAIN GAME LOOP & BOOTSTRAP
    ======================================================== */
 let lastTime = 0;
 let accumulator = 0;
 const FIXED_STEP = 1000 / 60;
 
 function startGame() {
+  gameMode = 'BREAK';
   initGame();
   gameState = STATE_PLAYING;
   accumulator = 0;
+  showOverlay(null);
+  syncHUD();
+}
+
+function toHome() {
+  gameMode = 'BREAK';
+  gameState = STATE_MENU;
+  initGame();
+  showOverlay('ovlHome');
+  syncHUD();
+}
+
+function toMatchMenu() {
+  gameMode = 'MATCH';
+  gameState = STATE_MENU;
+  showOverlay('ovlMatchMenu');
+  syncHUD();
+}
+
+function startMatch() {
+  gameMode = 'MATCH';
+  gameState = STATE_PLAYING;
+  matchInitBoard();
   showOverlay(null);
   syncHUD();
 }
@@ -1110,6 +1634,7 @@ function nextLevel() {
 }
 
 function toMenu() {
+  gameMode = 'BREAK';
   gameState = STATE_MENU;
   initGame();
   showOverlay('ovlMenu');
@@ -1248,6 +1773,11 @@ function restoreSnapshot(s) {
 }
 
 function handleResize() {
+  if (gameMode === 'MATCH') {
+    applyLayout(true);
+    return;
+  }
+
   const mode = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
   if (mode === layoutMode) return;
 
@@ -1290,7 +1820,10 @@ function gameLoop(now) {
   lastTime = now;
   if (delta > 250) delta = 250;
 
-  if (gameState === STATE_PLAYING) {
+  if (gameState === STATE_PLAYING && gameMode === 'MATCH') {
+    updateMatch(delta);
+    accumulator = 0;
+  } else if (gameState === STATE_PLAYING) {
     accumulator += delta;
     let steps = 0;
     while (accumulator >= FIXED_STEP && steps < 5) {
@@ -1314,7 +1847,7 @@ function boot() {
   const saved = getSavedUsername();
   if (saved) {
     currentUsername = saved;
-    toMenu();
+    toHome();
   } else {
     gameState = STATE_MENU;
     initGame();
@@ -1322,7 +1855,7 @@ function boot() {
     syncHUD();
     setTimeout(() => document.getElementById('inpUsername').focus(), 60);
   }
-  renderLeaderboard();
+  renderLeaderboard('break');
   requestAnimationFrame(gameLoop);
 }
 
