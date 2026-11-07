@@ -6,7 +6,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macaron Break</title>
+<title>Macaron Arcade</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23e0b2c6'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%23fffdf7'/%3E%3C/svg%3E">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -82,6 +83,9 @@
     max-width: 200px;
   }
   .hint { font-size: 12px; color: #b0a496; margin-top: 8px; }
+  .name-row { margin-top: 6px; gap: 6px; align-items: center; }
+  .name-row input { padding: 7px 10px; font-size: 13px; }
+  .name-row button { padding: 7px 14px; font-size: 13px; }
   .stats {
     position: absolute;
     top: -34px;
@@ -135,21 +139,14 @@
       <button id="btnHomeBreak">🧱 Macaron Break</button>
       <button id="btnHomeMatch">🍬 Macaron Match</button>
     </div>
-    <div class="row">
+    <div class="row name-row">
+      <input id="inpHomeName" maxlength="15" placeholder="Nama pemain">
+      <button id="btnHomeNameSave">Simpan Nama</button>
+    </div>
+    <div class="row" style="margin-top:0">
       <button id="btnHomeLB">🏆 Leaderboard</button>
-      <button id="btnHomeName">Ganti Nama</button>
     </div>
     <div class="hint">Break: hancurkan balok · Match: tukar permen, cocokkan 3+</div>
-  </div>
-
-  <div id="ovlUsername" class="overlay">
-    <h1>Masukkan Nama</h1>
-    <p>Nama akan disimpan untuk leaderboard.</p>
-    <input type="text" id="inpUsername" maxlength="15" placeholder="Pemain">
-    <div class="hint" id="txtUsernameErr"></div>
-    <div class="row">
-      <button id="btnUsernameMulai">Mulai</button>
-    </div>
   </div>
 
   <div id="ovlMenu" class="overlay">
@@ -160,7 +157,6 @@
     <div class="row">
       <button id="btnMenuMulai">Mulai Game</button>
       <button id="btnMenuLeaderboard">Leaderboard</button>
-      <button id="btnMenuGantiNama">Ganti Nama</button>
       <button id="btnMenuHome">« Semua Game</button>
     </div>
     <div class="hint">Kontrol: Panah kiri/kanan atau A/D | Spasi = Luncurkan / Pause</div>
@@ -1233,7 +1229,7 @@ function renderLeaderboard(game = lbGame) {
 /* ========================================================
    8. RENDERING & UI
    ======================================================== */
-const OVERLAY_IDS = ['ovlHome', 'ovlUsername', 'ovlMenu', 'ovlMatchMenu', 'ovlGameOver', 'ovlMatchOver', 'ovlLevel', 'ovlWin', 'ovlLeaderboard', 'ovlPause'];
+const OVERLAY_IDS = ['ovlHome', 'ovlMenu', 'ovlMatchMenu', 'ovlGameOver', 'ovlMatchOver', 'ovlLevel', 'ovlWin', 'ovlLeaderboard', 'ovlPause'];
 let currentOverlayId = null;
 let shake = 0;
 
@@ -1460,6 +1456,7 @@ function drawCandy(x, y, cell, candy) {
 
 function renderMatch() {
   drawBackground();
+  if (!matchGrid.length) return;
 
   const m = matchMetrics();
   ctx.save();
@@ -1511,44 +1508,28 @@ function render() {
   renderBreakout();
 }
 
-function openUsernameModal() {
-  const inp = document.getElementById('inpUsername');
-  const err = document.getElementById('txtUsernameErr');
-  inp.value = currentUsername || '';
-  err.textContent = '';
-  showOverlay('ovlUsername');
-  setTimeout(() => inp.focus(), 60);
-}
-
-function submitUsername() {
-  const inp = document.getElementById('inpUsername');
-  const err = document.getElementById('txtUsernameErr');
+function saveHomeName() {
+  const inp = document.getElementById('inpHomeName');
   const name = sanitizeUsername(inp.value);
-  if (!name) {
-    err.textContent = 'Nama wajib diisi (1-15 karakter).';
-    inp.focus();
-    return;
+  if (name) {
+    currentUsername = name;
+    saveUsername(name);
+    ensureAudio();
+    sfxClick();
   }
-  currentUsername = name;
-  saveUsername(name);
-  ensureAudio();
-  sfxClick();
-  inp.value = name;
-  err.textContent = '';
-  toHome();
+  inp.value = currentUsername || 'PEMAIN';
 }
 
 const getEl = (id) => document.getElementById(id);
 
-getEl('btnUsernameMulai').addEventListener('click', submitUsername);
-getEl('inpUsername').addEventListener('keydown', (e) => {
+getEl('btnHomeNameSave').addEventListener('click', saveHomeName);
+getEl('inpHomeName').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    submitUsername();
+    saveHomeName();
   }
 });
 getEl('btnMenuMulai').addEventListener('click', () => { ensureAudio(); sfxClick(); startGame(); });
-getEl('btnMenuGantiNama').addEventListener('click', () => { sfxClick(); openUsernameModal(); });
 getEl('btnMenuHome').addEventListener('click', () => { sfxClick(); toHome(); });
 getEl('btnMenuLeaderboard').addEventListener('click', () => {
   ensureAudio();
@@ -1559,7 +1540,6 @@ getEl('btnMenuLeaderboard').addEventListener('click', () => {
 });
 getEl('btnHomeBreak').addEventListener('click', () => { ensureAudio(); sfxClick(); toMenu(); });
 getEl('btnHomeMatch').addEventListener('click', () => { ensureAudio(); sfxClick(); toMatchMenu(); });
-getEl('btnHomeName').addEventListener('click', () => { sfxClick(); openUsernameModal(); });
 getEl('btnHomeLB').addEventListener('click', () => {
   ensureAudio();
   sfxClick();
@@ -1605,6 +1585,7 @@ function toHome() {
   gameMode = 'BREAK';
   gameState = STATE_MENU;
   initGame();
+  document.getElementById('inpHomeName').value = currentUsername || 'PEMAIN';
   showOverlay('ovlHome');
   syncHUD();
 }
@@ -1612,6 +1593,7 @@ function toHome() {
 function toMatchMenu() {
   gameMode = 'MATCH';
   gameState = STATE_MENU;
+  matchInitBoard();       // papan harus ada sebelum digambar
   showOverlay('ovlMatchMenu');
   syncHUD();
 }
@@ -1844,17 +1826,8 @@ function gameLoop(now) {
 
 function boot() {
   applyLayout(true);
-  const saved = getSavedUsername();
-  if (saved) {
-    currentUsername = saved;
-    toHome();
-  } else {
-    gameState = STATE_MENU;
-    initGame();
-    showOverlay('ovlUsername');
-    syncHUD();
-    setTimeout(() => document.getElementById('inpUsername').focus(), 60);
-  }
+  currentUsername = getSavedUsername() || 'PEMAIN';
+  toHome();
   renderLeaderboard('break');
   requestAnimationFrame(gameLoop);
 }
