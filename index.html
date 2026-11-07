@@ -51,6 +51,8 @@
     justify-content: center;
     border-radius: 8px;
     z-index: 10;
+    padding: 12px;
+    text-align: center;
   }
   .overlay.hidden { display: none; }
   h1 { margin: 0 0 16px; font-size: 24px; letter-spacing: 2px; text-transform: uppercase; }
@@ -88,9 +90,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     font-size: 14px;
     color: #97897a;
     padding: 0 4px;
+    white-space: nowrap;
   }
   .stats b { color: #7c8b5f; }
   .stats button { padding: 2px 10px; font-size: 12px; margin: 0; }
@@ -104,6 +108,7 @@
   @media (max-width: 480px) {
     h1 { font-size: 20px; }
     button { padding: 8px 16px; font-size: 14px; }
+    .stats { font-size: 12px; }
   }
 </style>
 </head>
@@ -115,6 +120,7 @@
   <div id="uiStats" class="stats">
     <span>Skor: <b id="txtScore">0</b></span>
     <span>Nyawa: <b id="txtLives">3</b></span>
+    <span>Level: <b id="txtLevel">1/5</b></span>
     <button id="btnHUDPause" style="display:none;">Pause</button>
   </div>
 
@@ -131,6 +137,7 @@
   <div id="ovlMenu" class="overlay">
     <h1>Macaron Break</h1>
     <p>Gerakkan paddle, pukul bola, hancurkan semua balok!</p>
+    <p class="hint">5 level · tiap level bola makin cepat &amp; baris balok bertambah</p>
     <div class="row">
       <button id="btnMenuMulai">Mulai Game</button>
       <button id="btnMenuLeaderboard">Leaderboard</button>
@@ -148,9 +155,18 @@
     </div>
   </div>
 
+  <div id="ovlLevel" class="overlay">
+    <h2 id="txtLevelTitle" style="color:#7d8f5f;">Level Selesai!</h2>
+    <p id="txtLevelInfo">Bonus +50 poin. Bola makin cepat!</p>
+    <p>Skor: <b id="txtLevelScore">0</b></p>
+    <div class="row">
+      <button id="btnLevelNext">Level Berikutnya</button>
+    </div>
+  </div>
+
   <div id="ovlWin" class="overlay">
-    <h2 style="color:#7d8f5f;">Selamat!</h2>
-    <p>Semua balok hancur!</p>
+    <h2 id="txtWinTitle" style="color:#7d8f5f;">Selamat!</h2>
+    <p id="txtWinInfo">Semua level selesai!</p>
     <p>Skor: <b id="txtWinScore">0</b></p>
     <div class="row">
       <button id="btnWinMainMenu">Menu Utama</button>
@@ -193,6 +209,7 @@ let PADDLE_H = 12;
 let PADDLE_SPEED = 7;
 let BALL_R = 7;
 let BALL_SPEED = 4;
+let BASE_BALL_SPEED = 4;
 let BRICK_ROWS = 5;
 let BRICK_COLS = 7;
 let BRICK_W = 46;
@@ -202,6 +219,18 @@ let BRICK_OFFSET_TOP = 50;
 let BRICK_OFFSET_LEFT = 28;
 
 const MAX_LIVES = 3;
+const MAX_LEVEL = 5;
+const LEVEL_SPEED_STEP = 0.10;   // +10% kecepatan bola per level
+const LEVEL_CLEAR_BONUS = 50;    // bonus = 50 x level
+
+// Palet macaron, dipakai bergantian tiap level
+const BRICK_PALETTES = [
+  ['#e3c3a6', '#cdd8b4', '#f0e3c8', '#aebd93', '#d9c9b0'],
+  ['#f2c9c9', '#e8d3f0', '#c9e4e8', '#f5e0b8', '#d9cbc0'],
+  ['#cfe3c0', '#f0dca8', '#d8c4e8', '#f2c9b0', '#c3dbe8'],
+  ['#e8c3d0', '#c9d8e8', '#f0e8c0', '#c8e3d2', '#dcd0c4'],
+  ['#f0c9a0', '#d8e3c0', '#c9c3e8', '#f0d0d0', '#bfd8cf']
+];
 
 const LAYOUTS = {
   portrait: { w: 400, h: 600, rows: 5, cols: 7, paddleW: 80, paddleSpeed: 7, ballR: 7, ballSpeed: 4, brickH: 16, brickPad: 6, top: 50, side: 28 },
@@ -216,10 +245,12 @@ const STATE_PLAYING = 'PLAYING';
 const STATE_PAUSED = 'PAUSED';
 const STATE_GAMEOVER = 'GAMEOVER';
 const STATE_WIN = 'WIN';
+const STATE_LEVELCLEAR = 'LEVELCLEAR';
 
 let gameState = STATE_MENU;
 let score = 0;
 let lives = MAX_LIVES;
+let level = 1;
 let currentUsername = '';
 
 let paddle = { x: 0, y: CANVAS_H - 30, w: PADDLE_W, h: PADDLE_H };
@@ -230,6 +261,9 @@ let particles = [];
 const keys = {};
 let pointerX = null;
 let isPointerDown = false;
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
 /* ========================================================
    2. AUDIO SYNTHESIS (Web Audio API)
    ======================================================== */
@@ -262,6 +296,11 @@ function sfxStart() { playTone(440, 'square', 0.1); playTone(554, 'square', 0.1,
 function sfxPaddle() { playTone(220, 'square', 0.08, 0.1); }
 function sfxBrick() { playTone(800, 'square', 0.06, 0.1); }
 function sfxGameOver() { playTone(150, 'sawtooth', 0.5, 0.15); playTone(100, 'sawtooth', 0.5, 0.1); }
+function sfxLevelClear() {
+  playTone(659, 'square', 0.12, 0.1);
+  playTone(880, 'square', 0.12, 0.1, 0.12);
+  playTone(1047, 'square', 0.2, 0.12, 0.24);
+}
 function sfxWin() {
   playTone(523, 'square', 0.15);
   playTone(659, 'square', 0.15, 0.1, 0.15);
@@ -275,6 +314,8 @@ function sfxClick() { playTone(900, 'square', 0.05, 0.05); }
    ======================================================== */
 window.addEventListener('keydown', (e) => {
   if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+  // Tombol gerak = keyboard ambil alih kendali paddle dari mouse
+  if (['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'].includes(e.code)) pointerX = null;
   keys[e.code] = true;
   if (e.repeat) return;
   if (e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyP') {
@@ -297,9 +338,13 @@ window.addEventListener('touchmove', (e) => {
   pointerX = (touch.clientX - rect.left) * (CANVAS_W / rect.width);
 }, { passive: false });
 
-window.addEventListener('mousedown', () => { isPointerDown = true; });
+// Hanya tap/klik DI DALAM canvas yang meluncurkan bola
+window.addEventListener('mousedown', (e) => {
+  if (e.target === canvas) isPointerDown = true;
+});
 window.addEventListener('mouseup', () => { isPointerDown = false; });
 window.addEventListener('touchstart', (e) => {
+  if (e.target !== canvas) return;
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
   if (!rect.width) return;
@@ -311,9 +356,14 @@ window.addEventListener('touchend', () => { isPointerDown = false; });
 window.addEventListener('visibilitychange', () => {
   if (document.hidden && gameState === STATE_PLAYING && !ball.stuck) togglePause();
 });
+
 /* ========================================================
    4. GAME STATE & ENTITIES
    ======================================================== */
+function refreshBallSpeed() {
+  BALL_SPEED = BASE_BALL_SPEED * (1 + (level - 1) * LEVEL_SPEED_STEP);
+}
+
 function resetBall() {
   ball.x = paddle.x + paddle.w / 2;
   ball.y = paddle.y - ball.r - 2;
@@ -323,17 +373,23 @@ function resetBall() {
   ball.stuck = true;
 }
 
+// Baris balok bertambah satu mulai level 3 (dibatasi ruang di atas paddle)
+function levelRows() {
+  return Math.min(BRICK_ROWS + (level >= 3 ? 1 : 0), BRICK_ROWS + 1);
+}
+
 function createBricks() {
   bricks = [];
-  const colors = ['#e3c3a6', '#cdd8b4', '#f0e3c8', '#aebd93', '#d9c9b0'];
-  for (let r = 0; r < BRICK_ROWS; r++) {
+  const palette = BRICK_PALETTES[(level - 1) % BRICK_PALETTES.length];
+  const rows = levelRows();
+  for (let r = 0; r < rows; r++) {
     for (let c = 0; c < BRICK_COLS; c++) {
       const x = BRICK_OFFSET_LEFT + c * (BRICK_W + BRICK_PAD);
       const y = BRICK_OFFSET_TOP + r * (BRICK_H + BRICK_PAD);
       bricks.push({
         x, y, w: BRICK_W, h: BRICK_H,
         alive: true,
-        color: colors[r % colors.length]
+        color: palette[r % palette.length]
       });
     }
   }
@@ -351,7 +407,9 @@ function spawnParticles(x, y, color) {
   }
 }
 
-function initGame() {
+// Siapkan papan sesuai `level` saat ini (tanpa menyentuh skor/nyawa)
+function buildLevel() {
+  refreshBallSpeed();
   paddle.w = PADDLE_W;
   paddle.h = PADDLE_H;
   ball.r = BALL_R;
@@ -359,15 +417,49 @@ function initGame() {
   paddle.y = CANVAS_H - 30;
   resetBall();
   createBricks();
-  score = 0;
-  lives = MAX_LIVES;
   particles = [];
   updateStats();
+}
+
+function initGame() {
+  score = 0;
+  lives = MAX_LIVES;
+  level = 1;
+  buildLevel();
 }
 
 function updateStats() {
   document.getElementById('txtScore').textContent = score;
   document.getElementById('txtLives').textContent = lives;
+  document.getElementById('txtLevel').textContent = level + '/' + MAX_LEVEL;
+}
+
+function levelClear() {
+  ball.active = false;
+  ball.stuck = false;
+  const bonus = LEVEL_CLEAR_BONUS * level;
+  score += bonus;
+  updateStats();
+  ensureAudio();
+
+  if (level >= MAX_LEVEL) {
+    gameState = STATE_WIN;
+    sfxWin();
+    checkLeaderboard(score);
+    document.getElementById('txtWinTitle').textContent = 'Selamat!';
+    document.getElementById('txtWinInfo').textContent = 'Kamu menaklukkan semua ' + MAX_LEVEL + ' level!';
+    document.getElementById('txtWinScore').textContent = score;
+    showOverlay('ovlWin');
+  } else {
+    gameState = STATE_LEVELCLEAR;
+    sfxLevelClear();
+    document.getElementById('txtLevelTitle').textContent = 'Level ' + level + ' Selesai!';
+    document.getElementById('txtLevelInfo').textContent =
+      'Bonus +' + bonus + ' poin. Level ' + (level + 1) + ': bola lebih cepat!';
+    document.getElementById('txtLevelScore').textContent = score;
+    showOverlay('ovlLevel');
+  }
+  syncHUD();
 }
 
 /* ========================================================
@@ -379,6 +471,38 @@ function rectCircleCollide(cx, cy, r, rx, ry, rw, rh) {
   const dx = cx - closestX;
   const dy = cy - closestY;
   return dx * dx + dy * dy <= r * r;
+}
+
+// Cegah bola masuk loop horizontal/mendatar (sudut terlalu tipis)
+const MIN_VX_RATIO = 0.22;
+const MIN_VY_RATIO = 0.30;
+
+function fixBallAngle() {
+  const speed = Math.hypot(ball.vx, ball.vy);
+  if (!speed) return;
+  let vx = ball.vx;
+  let vy = ball.vy;
+  // Komponen yang terlalu tipis dinaikkan ke ambang minimum,
+  // lalu komponen lainnya dihitung ulang agar kecepatan total tetap sama.
+  if (Math.abs(vx) < speed * MIN_VX_RATIO) {
+    vx = (vx < 0 ? -1 : 1) * speed * MIN_VX_RATIO;
+    vy = (vy < 0 ? -1 : 1) * Math.sqrt(Math.max(0, speed * speed - vx * vx));
+  }
+  if (Math.abs(vy) < speed * MIN_VY_RATIO) {
+    vy = (vy < 0 ? -1 : 1) * speed * MIN_VY_RATIO;
+    vx = (vx < 0 ? -1 : 1) * Math.sqrt(Math.max(0, speed * speed - vy * vy));
+  }
+  ball.vx = vx;
+  ball.vy = vy;
+}
+
+function launchBall() {
+  ball.stuck = false;
+  ball.active = true;
+  ball.vx = (Math.random() < 0.5 ? -1 : 1) * BALL_SPEED * 0.45;
+  ball.vy = -Math.sqrt(Math.max(0, BALL_SPEED * BALL_SPEED - ball.vx * ball.vx));
+  ensureAudio();
+  sfxStart();
 }
 
 function updatePhysics(dt) {
@@ -397,14 +521,7 @@ function updatePhysics(dt) {
   if (ball.stuck) {
     ball.x = paddle.x + paddle.w / 2;
     ball.y = paddle.y - ball.r - 2;
-    if (keys['Space'] || isPointerDown) {
-      ball.stuck = false;
-      ball.active = true;
-      ball.vx = (Math.random() - 0.5) * 4;
-      ball.vy = -BALL_SPEED;
-      ensureAudio();
-      sfxStart();
-    }
+    if (keys['Space'] || isPointerDown) launchBall();
     return;
   }
 
@@ -435,6 +552,7 @@ function updatePhysics(dt) {
     ball.vx = Math.sin(angle) * speed;
     ball.vy = -Math.abs(Math.cos(angle)) * speed;
     ball.y = paddle.y - ball.r - 1;
+    fixBallAngle();
     sfxPaddle();
   }
 
@@ -470,21 +588,13 @@ function updatePhysics(dt) {
 
       if (hitLeft || hitRight) ball.vx *= -1;
       if (hitTop || hitBottom) ball.vy *= -1;
-
+      if (!hitLeft && !hitRight && !hitTop && !hitBottom) ball.vy *= -1;
+      fixBallAngle();
       break;
     }
   }
 
-  if (bricks.length && bricks.every(b => !b.alive)) {
-    ball.active = false;
-    gameState = STATE_WIN;
-    ensureAudio();
-    sfxWin();
-    checkLeaderboard(score);
-    document.getElementById('txtWinScore').textContent = score;
-    showOverlay('ovlWin');
-    syncHUD();
-  }
+  if (bricks.length && bricks.every(b => !b.alive)) levelClear();
 }
 
 /* ========================================================
@@ -493,7 +603,6 @@ function updatePhysics(dt) {
 const LS_LAST_USERNAME = 'arcade_last_username';
 const LS_LEADERBOARD = 'arcade_leaderboard';
 const MAX_LEADERBOARD = 10;
-let lastRunId = '';
 
 function sanitizeUsername(raw) {
   return String(raw == null ? '' : raw)
@@ -551,7 +660,6 @@ function checkLeaderboard(finalScore) {
   list.push(entry);
   list.sort((a, b) => b.score - a.score);
   saveLeaderboard(list);
-  lastRunId = entry.id;
 }
 
 function renderLeaderboard() {
@@ -585,7 +693,8 @@ function renderLeaderboard() {
 /* ========================================================
    7. RENDERING & UI
    ======================================================== */
-const OVERLAY_IDS = ['ovlUsername', 'ovlMenu', 'ovlGameOver', 'ovlWin', 'ovlLeaderboard', 'ovlPause'];
+const OVERLAY_IDS = ['ovlUsername', 'ovlMenu', 'ovlGameOver', 'ovlLevel', 'ovlWin', 'ovlLeaderboard', 'ovlPause'];
+let currentOverlayId = null;
 let shake = 0;
 
 function showOverlay(id) {
@@ -593,6 +702,7 @@ function showOverlay(id) {
     const el = document.getElementById(ovlId);
     if (el) el.classList.add('hidden');
   }
+  currentOverlayId = id || null;
   if (!id) return;
   const target = document.getElementById(id);
   if (target) target.classList.remove('hidden');
@@ -771,6 +881,7 @@ getEl('btnMenuLeaderboard').addEventListener('click', () => {
 getEl('btnLBClose').addEventListener('click', () => { sfxClick(); showOverlay('ovlMenu'); });
 getEl('btnGORestart').addEventListener('click', () => { sfxClick(); startGame(); });
 getEl('btnGOMainMenu').addEventListener('click', () => { sfxClick(); toMenu(); });
+getEl('btnLevelNext').addEventListener('click', () => { sfxClick(); nextLevel(); });
 getEl('btnWinRestart').addEventListener('click', () => { sfxClick(); startGame(); });
 getEl('btnWinMainMenu').addEventListener('click', () => { sfxClick(); toMenu(); });
 getEl('btnPauseResume').addEventListener('click', () => { sfxClick(); togglePause(); });
@@ -788,6 +899,15 @@ const FIXED_STEP = 1000 / 60;
 
 function startGame() {
   initGame();
+  gameState = STATE_PLAYING;
+  accumulator = 0;
+  showOverlay(null);
+  syncHUD();
+}
+
+function nextLevel() {
+  level++;
+  buildLevel();
   gameState = STATE_PLAYING;
   accumulator = 0;
   showOverlay(null);
@@ -834,7 +954,8 @@ function applyLayout(force) {
   PADDLE_H = 12;
   PADDLE_SPEED = cfg.paddleSpeed;
   BALL_R = cfg.ballR;
-  BALL_SPEED = cfg.ballSpeed;
+  BASE_BALL_SPEED = cfg.ballSpeed;
+  refreshBallSpeed();
   BRICK_ROWS = cfg.rows;
   BRICK_COLS = cfg.cols;
   BRICK_H = cfg.brickH;
@@ -852,13 +973,83 @@ function applyLayout(force) {
   return true;
 }
 
+// Simpan kondisi permainan sebelum rotasi/resize, lalu bangun ulang proporsional
+function captureSnapshot() {
+  return {
+    score, lives, level, shake,
+    paddleCenter: (paddle.x + paddle.w / 2) / CANVAS_W,
+    ballX: ball.x / CANVAS_W,
+    ballY: ball.y / CANVAS_H,
+    ballVX: ball.vx / CANVAS_W,
+    ballVY: ball.vy / CANVAS_H,
+    stuck: ball.stuck,
+    active: ball.active,
+    rows: levelRows(),
+    cols: BRICK_COLS,
+    alive: bricks.map(b => b.alive)
+  };
+}
+
+function restoreSnapshot(s) {
+  level = s.level;
+  refreshBallSpeed();
+  score = s.score;
+  lives = s.lives;
+  shake = s.shake;
+
+  paddle.w = PADDLE_W;
+  paddle.h = PADDLE_H;
+  ball.r = BALL_R;
+  paddle.y = CANVAS_H - 30;
+
+  createBricks();
+
+  // Pindahkan pola balok lama ke grid baru secara proporsional
+  const newRows = levelRows();
+  for (let r = 0; r < newRows; r++) {
+    for (let c = 0; c < BRICK_COLS; c++) {
+      const sr = Math.min(s.rows - 1, Math.floor(r * s.rows / newRows));
+      const sc = Math.min(s.cols - 1, Math.floor(c * s.cols / BRICK_COLS));
+      bricks[r * BRICK_COLS + c].alive = !!s.alive[sr * s.cols + sc];
+    }
+  }
+  if (!bricks.some(b => b.alive)) bricks[0].alive = true;
+
+  paddle.x = clamp(s.paddleCenter * CANVAS_W - paddle.w / 2, 0, CANVAS_W - paddle.w);
+  ball.x = clamp(s.ballX * CANVAS_W, ball.r, CANVAS_W - ball.r);
+  ball.y = clamp(s.ballY * CANVAS_H, ball.r, CANVAS_H - ball.r);
+  ball.vx = s.ballVX * CANVAS_W;
+  ball.vy = s.ballVY * CANVAS_H;
+  ball.stuck = s.stuck;
+  ball.active = s.active;
+  if (ball.stuck) resetBall();
+
+  updateStats();
+}
+
 function handleResize() {
-  if (!applyLayout(false)) return;
-  const wasRunning = gameState === STATE_PLAYING || gameState === STATE_PAUSED;
-  initGame();
-  if (wasRunning) {
-    gameState = STATE_MENU;
-    showOverlay('ovlMenu');
+  const mode = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+  if (mode === layoutMode) return;
+
+  const wasActive = gameState === STATE_PLAYING || gameState === STATE_PAUSED;
+  const snap = wasActive ? captureSnapshot() : null;
+  const keepState = gameState;
+  const keepLevel = level;
+  const keepOverlay = currentOverlayId;
+
+  if (!applyLayout(true)) return;
+
+  if (snap) {
+    restoreSnapshot(snap);
+    gameState = STATE_PAUSED;   // jangan biarkan bola lepas saat rotasi
+    showOverlay('ovlPause');
+  } else {
+    initGame();
+    if (keepState === STATE_LEVELCLEAR) {
+      level = keepLevel;
+      refreshBallSpeed();
+    }
+    if (keepOverlay) showOverlay(keepOverlay);
   }
   syncHUD();
 }
