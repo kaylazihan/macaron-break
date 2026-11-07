@@ -90,6 +90,8 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] **Home langsung tampil** saat dibuka; nama pemain diisi lewat input di Home (tidak ada lagi tembok modal nama sebelum bisa melihat game).
 - [x] **Geser permen (drag/swipe)** ke kiri/kanan/atas/bawah untuk menukar dengan tetangga; klik dua permen tetap didukung.
 - [x] Geser yang tidak membentuk match dibatalkan tanpa memakai langkah; geseran kecil (<30% sel) tidak dihitung.
+- [x] **Bom**: match **4 sebaris atau lebih** mengubah permen di sel tukaran menjadi BOM; meledak **area 3×3** saat ikut terhapus, dan memicu bom lain (chain).
+- [x] Visual bom (bola gelap + sumbu), suara ledakan, getaran layar; bom ikut turun saat permen runtuh.
 - [x] Uji otomatis Node.js: 56 pemeriksaan gabungan (match-3, navigasi, leaderboard, regresi Break).
 - [x] **Fix kritis**: membuka menu Match membuat `gameMode='MATCH'` sebelum papan dibuat → `renderMatch` error tiap frame dan mematikan `requestAnimationFrame` (semua game beku). Papan kini disiapkan di `toMatchMenu()` + guard papan kosong.
 
@@ -117,6 +119,8 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 | **T-16** | Engine match-3 (swap, match, gravity) | Phase 8 | `DONE` | AI | Papan 8×8, 6 warna, 25 langkah |
 | **T-17** | Cascade combo & leaderboard terpisah | Phase 8 | `DONE` | AI | Tab Break/Match, key LocalStorage berbeda |
 | **T-18** | Uji otomatis gabungan dua game | Phase 8 | `DONE` | AI | 56 pemeriksaan, semuanya `PASS` |
+| **T-19** | Bom match-4 & ledakan 3×3 | Phase 8 | `DONE` | AI | Chain antar-bom, visual + suara ledakan |
+| **T-20** | Uji otomatis bom | Phase 8 | `DONE` | AI | 24 pemeriksaan + uji browser nyata |
 
 *Status: `TODO` | `IN-PROGRESS` | `DONE`*
 
@@ -126,6 +130,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.8.0** | 2026-11-07 | AI | **Bom** di Macaron Match: match 4+ sebaris mengubah permen jadi BOM, meledak 3×3 saat ikut terhapus, bisa memicu bom lain (chain). Ada visual bom + sumbu, suara ledakan, getaran layar. Diuji 24 pemeriksaan + skenario nyata di browser (match-4 → bom muncul → meledak, skor 90+ untuk 9 sel) | `98907a7` |
 | **v0.7.2** | 2026-11-07 | AI | **Tukar permen dengan geser**: drag/swipe ke kiri/kanan/atas/bawah (ambang 30% sel), klik dua permen tetap bisa. Geseran yang tidak menghasilkan match dibatalkan tanpa memakai langkah. Diuji 20 pemeriksaan logika + drag mouse asli di browser (memakai 1 langkah, skor naik, tanpa exception) | `7d0aaaa` |
 | **v0.7.1** | 2026-11-07 | AI | **Fix kritis**: membuka Macaron Match membuat seluruh game beku (error `renderMatch` sebelum papan ada → rAF mati). Papan disiapkan saat membuka menu + guard papan kosong. **Home langsung tampil** dengan input nama di dalamnya (modal nama dihapus), favicon ditambahkan. Diuji 40 pemeriksaan + alur klik nyata di browser (tanpa exception) | `962cd5c` |
 | **v0.7.0** | 2026-11-07 | AI | **Dua game dalam satu halaman**: layar Home "Macaron Arcade", game kedua **Macaron Match** (match-3 8×8, 25 langkah, cascade combo, gravity + refill, anti-match awal, anti-papan buntu), leaderboard dipisah per game dengan tab. HUD menyesuaikan mode. Diuji 56 pemeriksaan termasuk regresi Break | `bc28f93` |
