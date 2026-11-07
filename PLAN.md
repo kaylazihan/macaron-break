@@ -130,6 +130,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.8.1** | 2026-11-07 | AI | Petunjuk di papan: "Tahan permen, lalu geser ke sebelahnya / atau klik 2 permen" muncul saat mulai dan **hilang setelah tukaran pertama berhasil** — membantu pemain laptop yang belum tahu cara menggeser | `0a481d9` |
 | **v0.8.0** | 2026-11-07 | AI | **Bom** di Macaron Match: match 4+ sebaris mengubah permen jadi BOM, meledak 3×3 saat ikut terhapus, bisa memicu bom lain (chain). Ada visual bom + sumbu, suara ledakan, getaran layar. Diuji 24 pemeriksaan + skenario nyata di browser (match-4 → bom muncul → meledak, skor 90+ untuk 9 sel) | `98907a7` |
 | **v0.7.2** | 2026-11-07 | AI | **Tukar permen dengan geser**: drag/swipe ke kiri/kanan/atas/bawah (ambang 30% sel), klik dua permen tetap bisa. Geseran yang tidak menghasilkan match dibatalkan tanpa memakai langkah. Diuji 20 pemeriksaan logika + drag mouse asli di browser (memakai 1 langkah, skor naik, tanpa exception) | `7d0aaaa` |
 | **v0.7.1** | 2026-11-07 | AI | **Fix kritis**: membuka Macaron Match membuat seluruh game beku (error `renderMatch` sebelum papan ada → rAF mati). Papan disiapkan saat membuka menu + guard papan kosong. **Home langsung tampil** dengan input nama di dalamnya (modal nama dihapus), favicon ditambahkan. Diuji 40 pemeriksaan + alur klik nyata di browser (tanpa exception) | `962cd5c` |
