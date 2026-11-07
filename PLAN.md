@@ -88,6 +88,8 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] Leaderboard dengan **tab** per game (data terpisah: `arcade_leaderboard` & `arcade_leaderboard_match`).
 - [x] HUD menyesuaikan mode: Nyawa/Level untuk Break, Langkah untuk Match.
 - [x] **Home langsung tampil** saat dibuka; nama pemain diisi lewat input di Home (tidak ada lagi tembok modal nama sebelum bisa melihat game).
+- [x] **Geser permen (drag/swipe)** ke kiri/kanan/atas/bawah untuk menukar dengan tetangga; klik dua permen tetap didukung.
+- [x] Geser yang tidak membentuk match dibatalkan tanpa memakai langkah; geseran kecil (<30% sel) tidak dihitung.
 - [x] Uji otomatis Node.js: 56 pemeriksaan gabungan (match-3, navigasi, leaderboard, regresi Break).
 - [x] **Fix kritis**: membuka menu Match membuat `gameMode='MATCH'` sebelum papan dibuat → `renderMatch` error tiap frame dan mematikan `requestAnimationFrame` (semua game beku). Papan kini disiapkan di `toMatchMenu()` + guard papan kosong.
 
@@ -124,6 +126,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.7.2** | 2026-11-07 | AI | **Tukar permen dengan geser**: drag/swipe ke kiri/kanan/atas/bawah (ambang 30% sel), klik dua permen tetap bisa. Geseran yang tidak menghasilkan match dibatalkan tanpa memakai langkah. Diuji 20 pemeriksaan logika + drag mouse asli di browser (memakai 1 langkah, skor naik, tanpa exception) | `7d0aaaa` |
 | **v0.7.1** | 2026-11-07 | AI | **Fix kritis**: membuka Macaron Match membuat seluruh game beku (error `renderMatch` sebelum papan ada → rAF mati). Papan disiapkan saat membuka menu + guard papan kosong. **Home langsung tampil** dengan input nama di dalamnya (modal nama dihapus), favicon ditambahkan. Diuji 40 pemeriksaan + alur klik nyata di browser (tanpa exception) | `962cd5c` |
 | **v0.7.0** | 2026-11-07 | AI | **Dua game dalam satu halaman**: layar Home "Macaron Arcade", game kedua **Macaron Match** (match-3 8×8, 25 langkah, cascade combo, gravity + refill, anti-match awal, anti-papan buntu), leaderboard dipisah per game dengan tab. HUD menyesuaikan mode. Diuji 56 pemeriksaan termasuk regresi Break | `bc28f93` |
 | **v0.6.0** | 2026-11-07 | AI | **Power-up**: 4 item jatuh dari balok (peluang 18%) — Paddle Lebar 1,6× 12 dtk, Bola Ganda +2 bola, Bola Lambat 0,65× 8 dtk, Nyawa +1 (maks 5). Bola cadangan dipakai sebelum nyawa berkurang, pill durasi di atas papan, item & bola ikut rotasi layar. Diuji 34 pemeriksaan | `b095cac` |
