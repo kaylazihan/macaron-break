@@ -164,7 +164,7 @@
 
   <div id="ovlMatchMenu" class="overlay">
     <h2>🍬 Macaron Match</h2>
-    <p>Tukar dua permen bersebelahan untuk mencocokkan 3 atau lebih.</p>
+    <p>Geser permen ke kiri/kanan/atas/bawah — atau klik dua permen bersebelahan — untuk mencocokkan 3 atau lebih.</p>
     <p class="hint">8×8 · 25 langkah · cocokkan beruntun (cascade) untuk skor berlipat</p>
     <div class="row">
       <button id="btnMatchStart">Mulai</button>
@@ -342,6 +342,7 @@ let matchPhaseT = 0;
 let matchClearSet = [];
 let matchCombo = 0;
 let matchShake = 0;
+let matchDrag = null;     // { cell, x0, y0 } saat permen sedang digeser
 
 const keys = {};
 let pointerX = null;
@@ -422,16 +423,24 @@ function canvasPoint(clientX, clientY) {
 }
 
 window.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width) return;
-  pointerX = (e.clientX - rect.left) * (CANVAS_W / rect.width);
+  const p = canvasPoint(e.clientX, e.clientY);
+  if (!p) return;
+  if (gameMode === 'MATCH') {
+    matchPointerMove(p.x, p.y);
+    return;
+  }
+  pointerX = p.x;
 });
 window.addEventListener('touchmove', (e) => {
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width) return;
   const touch = e.touches[0];
-  pointerX = (touch.clientX - rect.left) * (CANVAS_W / rect.width);
+  const p = canvasPoint(touch.clientX, touch.clientY);
+  if (!p) return;
+  if (gameMode === 'MATCH') {
+    matchPointerMove(p.x, p.y);
+    return;
+  }
+  pointerX = p.x;
 }, { passive: false });
 
 // Hanya tap/klik DI DALAM canvas yang diproses
@@ -444,7 +453,10 @@ window.addEventListener('mousedown', (e) => {
   }
   isPointerDown = true;
 });
-window.addEventListener('mouseup', () => { isPointerDown = false; });
+window.addEventListener('mouseup', () => {
+  isPointerDown = false;
+  if (gameMode === 'MATCH') matchPointerUp();
+});
 window.addEventListener('touchstart', (e) => {
   if (e.target !== canvas) return;
   e.preventDefault();
@@ -458,7 +470,10 @@ window.addEventListener('touchstart', (e) => {
   pointerX = p.x;
   isPointerDown = true;
 }, { passive: false });
-window.addEventListener('touchend', () => { isPointerDown = false; });
+window.addEventListener('touchend', () => {
+  isPointerDown = false;
+  if (gameMode === 'MATCH') matchPointerUp();
+});
 window.addEventListener('visibilitychange', () => {
   if (document.hidden && gameState === STATE_PLAYING && !ball.stuck) togglePause();
 });
@@ -962,6 +977,7 @@ function matchInitBoard() {
   matchMoves = MATCH_MOVES;
   matchScore = 0;
   matchSelected = null;
+  matchDrag = null;
   matchPhase = 'idle';
   matchPhaseT = 0;
   matchClearSet = [];
@@ -1101,22 +1117,62 @@ function matchPointerDown(x, y) {
   const cell = matchCellAt(x, y);
   if (!cell) return;
 
-  if (!matchSelected) {
-    matchSelected = cell;
-    sfxClick();
+  if (matchSelected) {
+    const same = matchSelected.r === cell.r && matchSelected.c === cell.c;
+    if (same) {
+      matchSelected = null;
+      matchDrag = null;
+      return;
+    }
+    const adjacent = Math.abs(matchSelected.r - cell.r) + Math.abs(matchSelected.c - cell.c) === 1;
+    if (adjacent) {
+      // klik-dua-kali (tap dua permen): langsung tukar
+      const from = matchSelected;
+      matchDrag = null;
+      if (!matchTrySwap(from, cell)) matchSelected = cell;
+      return;
+    }
+  }
+
+  // pilih permen ini dan siap menerima geseran
+  matchSelected = cell;
+  matchDrag = { cell, x0: x, y0: y };
+}
+
+// Geser permen ke arah permen sebelah (drag / swipe)
+function matchPointerMove(x, y) {
+  if (!matchDrag) return;
+  if (gameState !== STATE_PLAYING || matchPhase !== 'idle') {
+    matchDrag = null;
     return;
   }
-  if (matchSelected.r === cell.r && matchSelected.c === cell.c) {
+
+  const cell = matchMetrics().cell;
+  const threshold = cell * 0.3;
+  const dx = x - matchDrag.x0;
+  const dy = y - matchDrag.y0;
+  if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+
+  const from = matchDrag.cell;
+  matchDrag = null;
+
+  let to;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    to = { r: from.r, c: from.c + (dx > 0 ? 1 : -1) };
+  } else {
+    to = { r: from.r + (dy > 0 ? 1 : -1), c: from.c };
+  }
+  if (to.r < 0 || to.r >= MATCH_ROWS || to.c < 0 || to.c >= MATCH_COLS) {
     matchSelected = null;
     return;
   }
-  const adjacent = Math.abs(matchSelected.r - cell.r) + Math.abs(matchSelected.c - cell.c) === 1;
-  if (adjacent) {
-    // Swap gagal: pilihan pindah ke permen kedua supaya tidak terasa "nyangkut"
-    if (!matchTrySwap(matchSelected, cell)) matchSelected = cell;
-  } else {
-    matchSelected = cell;
-  }
+
+  matchSelected = null;
+  if (!matchTrySwap(from, to)) matchSelected = null;   // gagal: kembali tanpa memakai langkah
+}
+
+function matchPointerUp() {
+  matchDrag = null;
 }
 
 /* ========================================================
