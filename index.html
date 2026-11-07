@@ -138,6 +138,7 @@
     <h1>Macaron Break</h1>
     <p>Gerakkan paddle, pukul bola, hancurkan semua balok!</p>
     <p class="hint">5 level · tiap level bola makin cepat &amp; baris balok bertambah</p>
+    <p class="hint">Tangkap item jatuh: W = paddle lebar · M = bola ganda · S = bola lambat · + = nyawa</p>
     <div class="row">
       <button id="btnMenuMulai">Mulai Game</button>
       <button id="btnMenuLeaderboard">Leaderboard</button>
@@ -224,6 +225,20 @@ const LEVEL_START_SPEED = 1.2;   // kecepatan bola di level 1 = 1,2x kecepatan d
 const LEVEL_SPEED_STEP = 0.10;   // +10% kecepatan bola per level
 const LEVEL_CLEAR_BONUS = 50;    // bonus = 50 x level
 
+/* POWER-UP: item jatuh dari balok yang hancur */
+const POWERUP_DROP_CHANCE = 0.18;   // peluang tiap balok menjatuhkan item
+const POWERUP_FALL_SPEED = 2.2;     // px per langkah
+const WIDE_FACTOR = 1.6;            // paddle jadi 1,6x lebih lebar
+const WIDE_DURATION = 12000;        // ms
+const SLOW_FACTOR = 0.65;           // bola jadi 0,65x lebih lambat
+const SLOW_DURATION = 8000;         // ms
+const POWERUP_TYPES = [
+  { id: 'wide',  label: 'W', color: '#b3c78c', name: 'Paddle Lebar' },
+  { id: 'multi', label: 'M', color: '#e0b2c6', name: 'Bola Ganda' },
+  { id: 'slow',  label: 'S', color: '#a5c6d8', name: 'Bola Lambat' },
+  { id: 'life',  label: '+', color: '#dfb188', name: 'Nyawa +1' }
+];
+
 // Palet macaron, dipakai bergantian tiap level
 const BRICK_PALETTES = [
   ['#e3c3a6', '#cdd8b4', '#f0e3c8', '#aebd93', '#d9c9b0'],
@@ -258,6 +273,10 @@ let paddle = { x: 0, y: CANVAS_H - 30, w: PADDLE_W, h: PADDLE_H };
 let ball = { x: 0, y: 0, r: BALL_R, vx: 0, vy: 0, active: false, stuck: true };
 let bricks = [];
 let particles = [];
+let extraBalls = [];      // bola tambahan dari power-up "Bola Ganda"
+let powerups = [];        // item yang sedang jatuh
+let effectWide = 0;       // sisa waktu paddle lebar (ms)
+let effectSlow = 0;       // sisa waktu bola lambat (ms)
 
 const keys = {};
 let pointerX = null;
@@ -296,6 +315,7 @@ function playTone(freq, type = 'square', duration = 0.1, vol = 0.1, delay = 0) {
 function sfxStart() { playTone(440, 'square', 0.1); playTone(554, 'square', 0.1, 0.08); }
 function sfxPaddle() { playTone(220, 'square', 0.08, 0.1); }
 function sfxBrick() { playTone(800, 'square', 0.06, 0.1); }
+function sfxPowerup() { playTone(660, 'triangle', 0.08, 0.12); playTone(990, 'triangle', 0.12, 0.1, 0.07); }
 function sfxGameOver() { playTone(150, 'sawtooth', 0.5, 0.15); playTone(100, 'sawtooth', 0.5, 0.1); }
 function sfxLevelClear() {
   playTone(659, 'square', 0.12, 0.1);
@@ -370,6 +390,7 @@ function resetBall() {
   ball.y = paddle.y - ball.r - 2;
   ball.vx = 0;
   ball.vy = -BALL_SPEED;
+  if (effectSlow > 0) ball.vy *= SLOW_FACTOR;   // jaga konsistensi saat efek lambat aktif
   ball.active = false;
   ball.stuck = true;
 }
@@ -419,6 +440,10 @@ function buildLevel() {
   resetBall();
   createBricks();
   particles = [];
+  extraBalls = [];
+  powerups = [];
+  effectWide = 0;
+  effectSlow = 0;
   updateStats();
 }
 
@@ -438,6 +463,10 @@ function updateStats() {
 function levelClear() {
   ball.active = false;
   ball.stuck = false;
+  extraBalls = [];
+  powerups = [];
+  effectWide = 0;
+  effectSlow = 0;
   const bonus = LEVEL_CLEAR_BONUS * level;
   score += bonus;
   updateStats();
@@ -478,11 +507,11 @@ function rectCircleCollide(cx, cy, r, rx, ry, rw, rh) {
 const MIN_VX_RATIO = 0.22;
 const MIN_VY_RATIO = 0.30;
 
-function fixBallAngle() {
-  const speed = Math.hypot(ball.vx, ball.vy);
+function fixBallAngle(b) {
+  const speed = Math.hypot(b.vx, b.vy);
   if (!speed) return;
-  let vx = ball.vx;
-  let vy = ball.vy;
+  let vx = b.vx;
+  let vy = b.vy;
   // Komponen yang terlalu tipis dinaikkan ke ambang minimum,
   // lalu komponen lainnya dihitung ulang agar kecepatan total tetap sama.
   if (Math.abs(vx) < speed * MIN_VX_RATIO) {
@@ -493,8 +522,8 @@ function fixBallAngle() {
     vy = (vy < 0 ? -1 : 1) * speed * MIN_VY_RATIO;
     vx = (vx < 0 ? -1 : 1) * Math.sqrt(Math.max(0, speed * speed - vy * vy));
   }
-  ball.vx = vx;
-  ball.vy = vy;
+  b.vx = vx;
+  b.vy = vy;
 }
 
 function launchBall() {
@@ -502,11 +531,163 @@ function launchBall() {
   ball.active = true;
   ball.vx = (Math.random() < 0.5 ? -1 : 1) * BALL_SPEED * 0.45;
   ball.vy = -Math.sqrt(Math.max(0, BALL_SPEED * BALL_SPEED - ball.vx * ball.vx));
+  if (effectSlow > 0) {
+    ball.vx *= SLOW_FACTOR;
+    ball.vy *= SLOW_FACTOR;
+  }
   ensureAudio();
   sfxStart();
 }
 
+function scaleBallSpeeds(k) {
+  ball.vx *= k;
+  ball.vy *= k;
+  for (const b of extraBalls) {
+    b.vx *= k;
+    b.vy *= k;
+  }
+}
+
+function spawnPowerup(x, y) {
+  const t = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+  powerups.push({ x, y, w: 24, h: 24, type: t.id, label: t.label, color: t.color });
+}
+
+function spawnExtraBalls(n) {
+  const speed = Math.hypot(ball.vx, ball.vy) || BALL_SPEED;
+  const base = Math.atan2(ball.vy, ball.vx);
+  for (let i = 1; i <= n; i++) {
+    const a = base + (i % 2 ? 1 : -1) * 0.45 * i;
+    const nb = {
+      x: ball.x, y: ball.y, r: ball.r,
+      vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+      stuck: false, active: true
+    };
+    fixBallAngle(nb);
+    extraBalls.push(nb);
+  }
+}
+
+function applyPowerup(type) {
+  ensureAudio();
+  sfxPowerup();
+  if (type === 'wide') {
+    const targetW = PADDLE_W * WIDE_FACTOR;
+    const center = paddle.x + paddle.w / 2;
+    paddle.w = targetW;
+    paddle.x = clamp(center - targetW / 2, 0, CANVAS_W - targetW);
+    effectWide = WIDE_DURATION;
+  } else if (type === 'multi') {
+    spawnExtraBalls(2);
+  } else if (type === 'slow') {
+    if (effectSlow <= 0) scaleBallSpeeds(SLOW_FACTOR);
+    effectSlow = SLOW_DURATION;
+  } else if (type === 'life') {
+    lives = Math.min(lives + 1, MAX_LIVES + 2);
+    updateStats();
+  }
+}
+
+// Gerakkan satu bola: dinding, paddle, lalu balok.
+// Mengembalikan false bila bola jatuh melewati bawah layar.
+function stepBall(b) {
+  b.x += b.vx;
+  b.y += b.vy;
+
+  if (b.x - b.r < 0) {
+    b.x = b.r;
+    b.vx *= -1;
+    sfxPaddle();
+  } else if (b.x + b.r > CANVAS_W) {
+    b.x = CANVAS_W - b.r;
+    b.vx *= -1;
+    sfxPaddle();
+  }
+  if (b.y - b.r < 0) {
+    b.y = b.r;
+    b.vy *= -1;
+    sfxPaddle();
+  }
+
+  if (b.vy > 0 && rectCircleCollide(b.x, b.y, b.r, paddle.x, paddle.y, paddle.w, paddle.h)) {
+    const hitPos = (b.x - paddle.x) / paddle.w;
+    const angle = (hitPos - 0.5) * 1.2;
+    const speed = Math.hypot(b.vx, b.vy);
+    b.vx = Math.sin(angle) * speed;
+    b.vy = -Math.abs(Math.cos(angle)) * speed;
+    b.y = paddle.y - b.r - 1;
+    fixBallAngle(b);
+    sfxPaddle();
+  }
+
+  if (b.y - b.r > CANVAS_H) return false;
+
+  for (let i = 0; i < bricks.length; i++) {
+    const br = bricks[i];
+    if (!br.alive) continue;
+    if (rectCircleCollide(b.x, b.y, b.r, br.x, br.y, br.w, br.h)) {
+      br.alive = false;
+      score += 10;
+      updateStats();
+      spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color);
+      sfxBrick();
+      if (Math.random() < POWERUP_DROP_CHANCE) spawnPowerup(br.x + br.w / 2, br.y + br.h / 2);
+
+      const prevX = b.x - b.vx;
+      const prevY = b.y - b.vy;
+      const hitLeft = prevX < br.x && b.x >= br.x;
+      const hitRight = prevX > br.x + br.w && b.x <= br.x + br.w;
+      const hitTop = prevY < br.y && b.y >= br.y;
+      const hitBottom = prevY > br.y + br.h && b.y <= br.y + br.h;
+
+      if (hitLeft || hitRight) b.vx *= -1;
+      if (hitTop || hitBottom) b.vy *= -1;
+      if (!hitLeft && !hitRight && !hitTop && !hitBottom) b.vy *= -1;
+      fixBallAngle(b);
+      break;
+    }
+  }
+  return true;
+}
+
+function updatePowerups() {
+  for (let i = powerups.length - 1; i >= 0; i--) {
+    const p = powerups[i];
+    p.y += POWERUP_FALL_SPEED;
+    const caught = p.x + p.w / 2 > paddle.x && p.x - p.w / 2 < paddle.x + paddle.w &&
+                   p.y + p.h / 2 > paddle.y && p.y - p.h / 2 < paddle.y + paddle.h;
+    if (caught) {
+      powerups.splice(i, 1);
+      applyPowerup(p.type);
+    } else if (p.y - p.h / 2 > CANVAS_H) {
+      powerups.splice(i, 1);
+    }
+  }
+}
+
+function updateEffects(dt) {
+  if (effectWide > 0) {
+    effectWide -= dt;
+    if (effectWide <= 0) {
+      effectWide = 0;
+      const center = paddle.x + paddle.w / 2;
+      paddle.w = PADDLE_W;
+      paddle.x = clamp(center - PADDLE_W / 2, 0, CANVAS_W - PADDLE_W);
+    }
+  }
+  if (effectSlow > 0) {
+    effectSlow -= dt;
+    if (effectSlow <= 0) {
+      effectSlow = 0;
+      scaleBallSpeeds(1 / SLOW_FACTOR);
+    }
+  }
+}
+
 function updatePhysics(dt) {
+  // Paddle lebar hanya berlaku selama efek aktif
+  paddle.w = PADDLE_W * (effectWide > 0 ? WIDE_FACTOR : 1);
+
   let px = paddle.x;
   if (keys['ArrowLeft'] || keys['KeyA']) px -= PADDLE_SPEED;
   if (keys['ArrowRight'] || keys['KeyD']) px += PADDLE_SPEED;
@@ -516,8 +697,12 @@ function updatePhysics(dt) {
     if (Math.abs(diff) > 1) px += Math.sign(diff) * Math.min(Math.abs(diff), PADDLE_SPEED);
   }
   if (px < 0) px = 0;
-  if (px + PADDLE_W > CANVAS_W) px = CANVAS_W - PADDLE_W;
+  if (px + paddle.w > CANVAS_W) px = CANVAS_W - paddle.w;
   paddle.x = px;
+
+  // Efek & item tetap berjalan walau bola sedang menunggu diluncurkan
+  updateEffects(dt);
+  updatePowerups();
 
   if (ball.stuck) {
     ball.x = paddle.x + paddle.w / 2;
@@ -528,74 +713,30 @@ function updatePhysics(dt) {
 
   if (!ball.active) return;
 
-  ball.x += ball.vx;
-  ball.y += ball.vy;
-
-  if (ball.x - ball.r < 0) {
-    ball.x = ball.r;
-    ball.vx *= -1;
-    sfxPaddle();
-  } else if (ball.x + ball.r > CANVAS_W) {
-    ball.x = CANVAS_W - ball.r;
-    ball.vx *= -1;
-    sfxPaddle();
-  }
-  if (ball.y - ball.r < 0) {
-    ball.y = ball.r;
-    ball.vy *= -1;
-    sfxPaddle();
-  }
-
-  if (ball.vy > 0 && rectCircleCollide(ball.x, ball.y, ball.r, paddle.x, paddle.y, paddle.w, paddle.h)) {
-    const hitPos = (ball.x - paddle.x) / paddle.w;
-    const angle = (hitPos - 0.5) * 1.2;
-    const speed = Math.hypot(ball.vx, ball.vy);
-    ball.vx = Math.sin(angle) * speed;
-    ball.vy = -Math.abs(Math.cos(angle)) * speed;
-    ball.y = paddle.y - ball.r - 1;
-    fixBallAngle();
-    sfxPaddle();
-  }
-
-  if (ball.y - ball.r > CANVAS_H) {
-    lives--;
-    updateStats();
-    ensureAudio();
-    if (lives <= 0) {
-      sfxGameOver();
-      gameOver();
+  if (!stepBall(ball)) {
+    if (extraBalls.length) {
+      // Bola utama hilang tapi masih ada bola cadangan: pakai cadangan, nyawa belum berkurang
+      ball = extraBalls.shift();
+      ball.stuck = false;
+      ball.active = true;
     } else {
-      resetBall();
-    }
-    return;
-  }
-
-  for (let i = 0; i < bricks.length; i++) {
-    const b = bricks[i];
-    if (!b.alive) continue;
-    if (rectCircleCollide(ball.x, ball.y, ball.r, b.x, b.y, b.w, b.h)) {
-      b.alive = false;
-      score += 10;
+      lives--;
       updateStats();
-      spawnParticles(b.x + b.w / 2, b.y + b.h / 2, b.color);
-      sfxBrick();
-
-      const prevX = ball.x - ball.vx;
-      const prevY = ball.y - ball.vy;
-      const hitLeft = prevX < b.x && ball.x >= b.x;
-      const hitRight = prevX > b.x + b.w && ball.x <= b.x + b.w;
-      const hitTop = prevY < b.y && ball.y >= b.y;
-      const hitBottom = prevY > b.y + b.h && ball.y <= b.y + b.h;
-
-      if (hitLeft || hitRight) ball.vx *= -1;
-      if (hitTop || hitBottom) ball.vy *= -1;
-      if (!hitLeft && !hitRight && !hitTop && !hitBottom) ball.vy *= -1;
-      fixBallAngle();
-      break;
+      ensureAudio();
+      if (lives <= 0) {
+        sfxGameOver();
+        gameOver();
+      } else {
+        resetBall();
+      }
     }
   }
 
-  if (bricks.length && bricks.every(b => !b.alive)) levelClear();
+  for (let i = extraBalls.length - 1; i >= 0; i--) {
+    if (!stepBall(extraBalls[i])) extraBalls.splice(i, 1);
+  }
+
+  if (gameState === STATE_PLAYING && bricks.length && bricks.every(b => !b.alive)) levelClear();
 }
 
 /* ========================================================
@@ -771,32 +912,83 @@ function drawPaddle() {
   ctx.restore();
 }
 
-function drawBall() {
-  if (!ball.stuck && !ball.active) return;
+function drawOneBall(b) {
   ctx.save();
   ctx.shadowColor = 'rgba(120, 90, 60, 0.45)';
   ctx.shadowBlur = 12;
   ctx.fillStyle = '#7b5a40';
   ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
 
-  if (ball.stuck) {
+function drawBall() {
+  if (ball.stuck || ball.active) drawOneBall(ball);
+  for (const eb of extraBalls) drawOneBall(eb);
+
+  if (!ball.stuck) return;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(140, 150, 110, 0.45)';
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.moveTo(ball.x, ball.y - 10);
+  ctx.lineTo(ball.x, ball.y - 70);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(100, 90, 70, 0.85)';
+  ctx.font = 'bold 12px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Spasi / Tap untuk meluncurkan', CANVAS_W / 2, paddle.y - 90);
+  ctx.textAlign = 'start';
+}
+
+function drawPowerups() {
+  for (const p of powerups) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(140, 150, 110, 0.45)';
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ctx.moveTo(ball.x, ball.y - 10);
-    ctx.lineTo(ball.x, ball.y - 70);
-    ctx.stroke();
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = p.color;
+    roundRect(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h, 7);
+    ctx.fill();
     ctx.restore();
 
-    ctx.fillStyle = 'rgba(100, 90, 70, 0.85)';
-    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#fffdf7';
+    ctx.font = 'bold 14px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Spasi / Tap untuk meluncurkan', CANVAS_W / 2, paddle.y - 90);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.label, p.x, p.y + 1);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'start';
   }
+}
+
+// Tampilkan sisa durasi efek aktif di bagian atas papan
+function drawEffects() {
+  const pills = [];
+  if (effectWide > 0) pills.push(['PADDLE LEBAR', effectWide, '#b3c78c']);
+  if (effectSlow > 0) pills.push(['BOLA LAMBAT', effectSlow, '#a5c6d8']);
+  if (!pills.length) return;
+
+  ctx.font = 'bold 10px "Segoe UI", sans-serif';
+  ctx.textBaseline = 'middle';
+  let x = 10;
+  const y = 16;
+  for (const [label, ms, color] of pills) {
+    const text = label + ' ' + Math.ceil(ms / 1000) + 's';
+    const w = ctx.measureText(text).width + 16;
+    ctx.fillStyle = color;
+    roundRect(x, y - 9, w, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = '#57473a';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x + w / 2, y + 1);
+    x += w + 6;
+  }
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
 }
 
 function updateParticles() {
@@ -831,7 +1023,9 @@ function render() {
   drawBricks();
   drawPaddle();
   drawBall();
+  drawPowerups();
   drawParticles();
+  drawEffects();
   ctx.restore();
 }
 
@@ -925,6 +1119,10 @@ function toMenu() {
 function gameOver() {
   gameState = STATE_GAMEOVER;
   shake = 16;
+  extraBalls = [];
+  powerups = [];
+  effectWide = 0;
+  effectSlow = 0;
   checkLeaderboard(score);
   document.getElementById('txtFinalScore').textContent = score;
   showOverlay('ovlGameOver');
@@ -985,6 +1183,15 @@ function captureSnapshot() {
     ballVY: ball.vy / CANVAS_H,
     stuck: ball.stuck,
     active: ball.active,
+    effectWide, effectSlow,
+    extraBalls: extraBalls.map(b => ({
+      rx: b.x / CANVAS_W, ry: b.y / CANVAS_H,
+      rvx: b.vx / CANVAS_W, rvy: b.vy / CANVAS_H
+    })),
+    powerups: powerups.map(p => ({
+      rx: p.x / CANVAS_W, ry: p.y / CANVAS_H,
+      type: p.type, label: p.label, color: p.color
+    })),
     rows: levelRows(),
     cols: BRICK_COLS,
     alive: bricks.map(b => b.alive)
@@ -998,7 +1205,9 @@ function restoreSnapshot(s) {
   lives = s.lives;
   shake = s.shake;
 
-  paddle.w = PADDLE_W;
+  effectWide = s.effectWide || 0;
+  effectSlow = s.effectSlow || 0;
+  paddle.w = PADDLE_W * (effectWide > 0 ? WIDE_FACTOR : 1);
   paddle.h = PADDLE_H;
   ball.r = BALL_R;
   paddle.y = CANVAS_H - 30;
@@ -1024,6 +1233,16 @@ function restoreSnapshot(s) {
   ball.stuck = s.stuck;
   ball.active = s.active;
   if (ball.stuck) resetBall();
+
+  extraBalls = (s.extraBalls || []).map(b => ({
+    x: b.rx * CANVAS_W, y: b.ry * CANVAS_H, r: BALL_R,
+    vx: b.rvx * CANVAS_W, vy: b.rvy * CANVAS_H,
+    stuck: false, active: true
+  }));
+  powerups = (s.powerups || []).map(p => ({
+    x: p.rx * CANVAS_W, y: p.ry * CANVAS_H, w: 24, h: 24,
+    type: p.type, label: p.label, color: p.color
+  }));
 
   updateStats();
 }
