@@ -7,6 +7,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 ## 1. Ikhtisar Game
 
 - **Judul Game**: **Macaron Break** (tema pastel lembut, kontrol keyboard + sentuh/mouse)
+- **Struktur Permainan**: 5 level bertingkat — bola makin cepat, baris balok bertambah, bonus poin per level
 - **Genre**: 2D Arcade Game
 - **Format**: Single-File HTML (`index.html`) tanpa dependensi eksternal
 - **Platform**: Web Browser (Desktop & Mobile Responsive)
@@ -22,7 +23,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 ### Phase 0: Brainstorming & Desain Game
 - [x] Ide & tema game: **Macaron Break** — pecahkan semua balok pastel.
 - [x] Kontrol: Panah Kiri/Kanan atau A/D, gerak mouse, dan drag sentuh. Spasi/Tap = luncurkan bola & Pause.
-- [x] Aturan: 3 nyawa, +10 poin per balok, menang bila semua balok hancur, kalah bila nyawa habis.
+- [x] Aturan: 3 nyawa, +10 poin per balok, 5 level; bonus 50 × level saat level selesai, menang bila semua level tuntas, kalah bila nyawa habis.
 - [x] Gaya visual: **pastel lembut** (latar terang, balok warna macaron, aksen mint).
 
 ### Phase 1: Setup Single-File `index.html`
@@ -56,6 +57,14 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 - [x] Build Pages terverifikasi: status `building` → HTTP 200 pada percobaan pertama.
 - [x] Tes live demo: https://kaylazihan.github.io/macaron-break/ (HTTP 200, judul & palet baru tampil).
 
+### Phase 6: Level & Difficulty Ramp (v0.5.0)
+- [x] 5 level dengan `STATE_LEVELCLEAR` di antara level.
+- [x] Kecepatan bola +10% setiap level (`LEVEL_SPEED_STEP`).
+- [x] Baris balok bertambah 1 mulai level 3, palet warna macaron berganti tiap level.
+- [x] Bonus skor 50 × level saat level selesai, rekor dikirim ke leaderboard di level 5.
+- [x] Perbaikan bug: kontrol keyboard vs mouse, rotasi layar, sudut pantulan bola.
+- [x] Uji otomatis Node.js: 41 pemeriksaan (`PASS` semua) sebelum deploy.
+
 ---
 
 ## 3. Matriks Tugas & Status Pelaksanaan
@@ -69,6 +78,10 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 | **T-04** | Logika Pergerakan, Rintangan & Tabrakan | Phase 3 | `DONE` | AI | Paddle, 35 balok, collision, skor, pause |
 | **T-05** | Efek Suara Synth Web Audio API & Partikel | Phase 4 | `DONE` | AI | SFX sintetis, partikel, screen shake |
 | **T-06** | Deployment GitHub Pages via GitHub CLI (`gh`) | Phase 5 | `DONE` | AI | Live: https://kaylazihan.github.io/macaron-break/ |
+| **T-07** | Sistem 5 level & difficulty ramp | Phase 6 | `DONE` | AI | Speed +10%/level, bonus 50×level, palet berganti |
+| **T-08** | Perbaikan bug kontrol & rotasi layar | Phase 6 | `DONE` | AI | Keyboard vs mouse, snapshot proporsional + auto-pause |
+| **T-09** | Perbaikan sudut pantulan bola | Phase 6 | `DONE` | AI | Batas minimum 22% `vx` / 30% `vy`, kecepatan tetap |
+| **T-10** | Uji otomatis logika game (Node.js) | Phase 6 | `DONE` | AI | 41 pemeriksaan, semuanya `PASS` |
 
 *Status: `TODO` | `IN-PROGRESS` | `DONE`*
 
@@ -78,6 +91,7 @@ Dokumen ini adalah rencana kerja universal dan log perkembangan proyek pembuatan
 
 | Versi | Tanggal | Pelaksana | Ringkasan Perubahan | Referensi Commit |
 | :--- | :--- | :--- | :--- | :--- |
+| **v0.5.0** | 2026-11-07 | AI | Sistem **5 level**: kecepatan bola +10%/level, baris balok bertambah mulai level 3, bonus 50×level, palet warna berganti, overlay Level Selesai. Perbaikan 3 bug: paddle terkunci mouse, rotasi layar menghapus progres, bola nyangkut di sudut datar | `b0efcb6` |
 | **v0.4.0** | 2026-10-31 | AI | Tema pastel hijau-cokelat (cream, sage, mocha), layout otomatis potret di HP & lanskap di laptop, render tajam (DPR), judul **Macaron Break**, deploy GitHub Pages | `01327ee` |
 | **v0.3.0** | 2026-10-31 | AI | Menyelesaikan game Brick Breaker: leaderboard LocalStorage, rendering neon, game loop fixed timestep, pause, sanitasi username, HUD mobile, uji otomatis 23 check | *(belum di-commit)* |
 | **v0.2.2** | 2026-10-24 | AI | Menambahkan panduan alur integrasi khusus Google AI Studio & penegasan repo wajib Public | `07475fb` |
