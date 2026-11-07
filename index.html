@@ -166,6 +166,7 @@
     <h2>🍬 Macaron Match</h2>
     <p>Geser permen ke kiri/kanan/atas/bawah — atau klik dua permen bersebelahan — untuk mencocokkan 3 atau lebih.</p>
     <p class="hint">8×8 · 25 langkah · cocokkan beruntun (cascade) untuk skor berlipat</p>
+    <p class="hint">Cocokkan 4 sebaris atau lebih → permen jadi 💣 BOM, meledak area 3×3</p>
     <div class="row">
       <button id="btnMatchStart">Mulai</button>
       <button id="btnMatchBack">« Semua Game</button>
@@ -340,6 +341,7 @@ let matchSelected = null; // { r, c }
 let matchPhase = 'idle';  // 'idle' | 'clear' | 'fall'
 let matchPhaseT = 0;
 let matchClearSet = [];
+let matchBombCells = [];  // sel yang berubah jadi bom pada pembersihan ini
 let matchCombo = 0;
 let matchShake = 0;
 let matchDrag = null;     // { cell, x0, y0 } saat permen sedang digeser
@@ -382,6 +384,7 @@ function sfxStart() { playTone(440, 'square', 0.1); playTone(554, 'square', 0.1,
 function sfxPaddle() { playTone(220, 'square', 0.08, 0.1); }
 function sfxBrick() { playTone(800, 'square', 0.06, 0.1); }
 function sfxPowerup() { playTone(660, 'triangle', 0.08, 0.12); playTone(990, 'triangle', 0.12, 0.1, 0.07); }
+function sfxBomb() { playTone(120, 'sawtooth', 0.22, 0.16); playTone(70, 'square', 0.3, 0.12, 0.05); }
 function sfxGameOver() { playTone(150, 'sawtooth', 0.5, 0.15); playTone(100, 'sawtooth', 0.5, 0.1); }
 function sfxLevelClear() {
   playTone(659, 'square', 0.12, 0.1);
@@ -856,7 +859,7 @@ function matchMetrics() {
 }
 
 function makeCandy(color) {
-  return { color, offY: 0, scale: 1 };
+  return { color, offY: 0, scale: 1, bomb: false };
 }
 
 function matchCellAt(x, y) {
@@ -874,38 +877,94 @@ function swapCandies(r1, c1, r2, c2) {
 }
 
 // Kumpulan sel yang membentuk baris/kolom 3 warna sama atau lebih
-function findMatchSet() {
-  const found = new Set();
-  const key = (r, c) => r * MATCH_COLS + c;
+function findMatchRuns() {
+  const runs = [];
 
   for (let r = 0; r < MATCH_ROWS; r++) {
-    let run = 1;
+    let start = 0;
     for (let c = 1; c <= MATCH_COLS; c++) {
       const same = c < MATCH_COLS && matchGrid[r][c] && matchGrid[r][c - 1] &&
                    matchGrid[r][c].color === matchGrid[r][c - 1].color;
-      if (same) {
-        run++;
-      } else {
-        if (run >= 3) for (let k = c - run; k < c; k++) found.add(key(r, k));
-        run = 1;
+      if (!same) {
+        const len = c - start;
+        if (len >= 3) {
+          const cells = [];
+          for (let k = start; k < c; k++) cells.push({ r, c: k });
+          runs.push({ cells, horizontal: true });
+        }
+        start = c;
       }
     }
   }
 
   for (let c = 0; c < MATCH_COLS; c++) {
-    let run = 1;
+    let start = 0;
     for (let r = 1; r <= MATCH_ROWS; r++) {
       const same = r < MATCH_ROWS && matchGrid[r][c] && matchGrid[r - 1][c] &&
                    matchGrid[r][c].color === matchGrid[r - 1][c].color;
-      if (same) {
-        run++;
-      } else {
-        if (run >= 3) for (let k = r - run; k < r; k++) found.add(key(k, c));
-        run = 1;
+      if (!same) {
+        const len = r - start;
+        if (len >= 3) {
+          const cells = [];
+          for (let k = start; k < r; k++) cells.push({ r: k, c });
+          runs.push({ cells, horizontal: false });
+        }
+        start = r;
       }
     }
   }
-  return found;
+  return runs;
+}
+
+function findMatchSet() {
+  const set = new Set();
+  for (const run of findMatchRuns()) {
+    for (const p of run.cells) set.add(p.r * MATCH_COLS + p.c);
+  }
+  return set;
+}
+
+// Sel tempat bom baru muncul (untuk tiap baris 4+ sewarna)
+function pickBombCells(runs, swapCell) {
+  const cells = [];
+  for (const run of runs) {
+    if (run.cells.length < 4) continue;
+    let chosen = null;
+    if (swapCell) chosen = run.cells.find(p => p.r === swapCell.r && p.c === swapCell.c);
+    if (!chosen) chosen = run.cells[Math.floor(run.cells.length / 2)];
+    const candy = matchGrid[chosen.r][chosen.c];
+    if (candy && candy.bomb) continue;   // sudah bom: ikut meledak, jangan ditimpa
+    cells.push(chosen.r * MATCH_COLS + chosen.c);
+  }
+  return cells;
+}
+
+// Bom meledak 3x3 dan bisa memicu bom lain (chain)
+function expandBombs(set) {
+  let changed = true;
+  let guard = 0;
+  while (changed && guard < 12) {
+    changed = false;
+    guard++;
+    for (const k of Array.from(set)) {
+      const r = Math.floor(k / MATCH_COLS);
+      const c = k % MATCH_COLS;
+      const candy = matchGrid[r][c];
+      if (!candy || !candy.bomb) continue;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr < 0 || nr >= MATCH_ROWS || nc < 0 || nc >= MATCH_COLS) continue;
+          const nk = nr * MATCH_COLS + nc;
+          if (!set.has(nk)) {
+            set.add(nk);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
 }
 
 function hasValidMove() {
@@ -981,6 +1040,7 @@ function matchInitBoard() {
   matchPhase = 'idle';
   matchPhaseT = 0;
   matchClearSet = [];
+  matchBombCells = [];
   matchCombo = 0;
   matchShake = 0;
 
@@ -988,8 +1048,13 @@ function matchInitBoard() {
   updateMatchHUD();
 }
 
-function startMatchClear(set) {
-  matchClearSet = Array.from(set);
+function startMatchClear(runs, swapCell) {
+  const keys = [];
+  for (const run of runs) {
+    for (const p of run.cells) keys.push(p.r * MATCH_COLS + p.c);
+  }
+  matchClearSet = Array.from(new Set(keys));
+  matchBombCells = pickBombCells(runs, swapCell);
   matchPhase = 'clear';
   matchPhaseT = 0;
   sfxBrick();
@@ -1001,8 +1066,8 @@ function matchTrySwap(a, b) {
   if (Math.abs(a.r - b.r) + Math.abs(a.c - b.c) !== 1) return false;
 
   swapCandies(a.r, a.c, b.r, b.c);
-  const found = findMatchSet();
-  if (!found.size) {
+  const runs = findMatchRuns();
+  if (!runs.length) {
     swapCandies(a.r, a.c, b.r, b.c);
     matchShake = 220;
     sfxClick();
@@ -1013,7 +1078,7 @@ function matchTrySwap(a, b) {
   matchSelected = null;
   matchCombo = 1;
   updateMatchHUD();
-  startMatchClear(found);
+  startMatchClear(runs, b);
   return true;
 }
 
@@ -1069,12 +1134,34 @@ function updateMatch(dt) {
       if (candy) candy.scale = 1 - p;
     }
     if (p >= 1) {
-      matchScore += matchClearSet.length * MATCH_BASE_SCORE * matchCombo;
+      const set = new Set(matchClearSet);
+      const sizeBefore = set.size;
+      expandBombs(set);
+      if (set.size > sizeBefore) {
+        matchShake = 260;
+        sfxBomb();
+      }
+
+      matchScore += set.size * MATCH_BASE_SCORE * matchCombo;
       updateMatchHUD();
-      for (const k of matchClearSet) {
+
+      // Sel tempat bom baru muncul tidak dihapus, hanya berubah jadi bom
+      const keepBombs = new Set(matchBombCells);
+      for (const k of set) {
+        if (keepBombs.has(k)) continue;
         matchGrid[Math.floor(k / MATCH_COLS)][k % MATCH_COLS] = null;
       }
+      for (const k of keepBombs) {
+        const candy = matchGrid[Math.floor(k / MATCH_COLS)][k % MATCH_COLS];
+        if (candy) {
+          candy.bomb = true;
+          candy.scale = 1;
+          candy.offY = 0;
+        }
+      }
+
       matchClearSet = [];
+      matchBombCells = [];
       collapseBoard();
       matchPhase = 'fall';
       matchPhaseT = 0;
@@ -1098,10 +1185,10 @@ function updateMatch(dt) {
           }
         }
       }
-      const next = findMatchSet();
-      if (next.size) {
+      const nextRuns = findMatchRuns();
+      if (nextRuns.length) {
         matchCombo++;
-        startMatchClear(next);
+        startMatchClear(nextRuns);
       } else {
         matchPhase = 'idle';
         matchCombo = 0;
@@ -1508,6 +1595,21 @@ function drawCandy(x, y, cell, candy) {
   ctx.beginPath();
   ctx.ellipse(cx - half * 0.35, cy - half * 0.42, half * 0.34, half * 0.2, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  if (candy.bomb) {
+    // Bom: bola gelap + sumbu
+    ctx.fillStyle = 'rgba(70, 55, 45, 0.9)';
+    ctx.beginPath();
+    ctx.arc(cx, cy + half * 0.1, size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 253, 247, 0.95)';
+    ctx.lineWidth = Math.max(1.5, size * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(cx + size * 0.16, cy - size * 0.18);
+    ctx.lineTo(cx + size * 0.3, cy - size * 0.34);
+    ctx.stroke();
+  }
 }
 
 function renderMatch() {
